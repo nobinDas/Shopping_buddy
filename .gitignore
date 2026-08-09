@@ -1,0 +1,54 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# testing
+/coverage
+/playwright-report/
+/test-results/
+
+# secrets — see docs/SECURITY.md
+# every .env file is ignored except the placeholder-only example
+.env
+.env*.local
+.env.production
+.env.development
+!.env.example
+
+# OAuth client secrets / service account files (Google, Microsoft)
+*.pem
+*.key
+client_secret*.json
+service-account*.json
+credentials.json
+token.json
+
+# supabase local dev
+/supabase/.branches
+/supabase/.temp
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
