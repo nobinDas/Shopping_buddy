@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens from docs/DESIGN.md, kept in sync with that file.
+ * Colours: oxblood/verdigris/ochre signal colours instead of red/green —
+ * see DESIGN.md for the rationale. Fonts are wired to the CSS variables
+ * next/font sets on <body> in layout.tsx.
+ */
+@theme {
+  --color-ground: #12161a;
+  --color-surface: #eef0ec;
+  --color-surface-2: #e2e5e0;
+  --color-ink: #14181a;
+  --color-ink-muted: #5d6560;
+  --color-rule: #c9cec7;
+
+  --color-flag: #7a2e3c;
+  --color-verified: #2f6f6a;
+  --color-pending: #b07a1e;
+
+  --font-display: var(--font-bricolage);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}

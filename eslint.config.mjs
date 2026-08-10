@@ -1,11 +1,15 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import nextConfig from 'eslint-config-next';
 import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
     ignores: [
-      'eslint.config.mjs',
+      // plain-JS config files (eslint.config.mjs, postcss.config.mjs, ...) —
+      // the typed typescript-eslint rules below apply globally and need
+      // parserOptions.project/projectService, which these files don't have.
+      '*.config.mjs',
       'node_modules/**',
       '.next/**',
       'dist/**',
@@ -16,6 +20,9 @@ export default tseslint.config(
     ],
   },
   js.configs.recommended,
+  // eslint-config-next comes before our own typescript-eslint configs so
+  // our stricter typed rules and parserOptions win where they overlap.
+  ...nextConfig,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
   {
@@ -79,5 +86,10 @@ export default tseslint.config(
 );
 
 // NOTE: the ARCHITECTURE.md rule "client components never import src/server/**"
-// isn't enforced yet — it depends on Next.js's 'use client' directive, which
-// doesn't exist until the app is scaffolded (Phase 0.2). Add it then.
+// still isn't statically enforced. 'use client' now exists as a directive,
+// but ESLint's no-restricted-imports can't key off a directive inside a file —
+// it only matches file paths/globs. Two real options when server/ gains real
+// code: (1) the `server-only` package (throws at build time if a server file
+// ends up in the client bundle — the standard Next.js answer to this exact
+// problem), or (2) eslint-plugin-boundaries for a lint-time version. Pick one
+// in Phase 1 when src/server/providers actually holds token-handling code.
