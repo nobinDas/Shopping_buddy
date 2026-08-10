@@ -23,7 +23,7 @@ over-built.
 - [x] Vitest configured with one passing unit test
 - [x] Playwright configured with one passing smoke test
 - [x] `pnpm verify` script wired and green
-- [ ] CI running `pnpm verify` on push
+- [x] CI running `pnpm verify` on push
 - [ ] `.env.example` complete and documented
 
 **Exit criteria:** a deployed skeleton behind auth, CI green, `pnpm verify`
