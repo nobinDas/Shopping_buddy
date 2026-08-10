@@ -50,6 +50,40 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-08-10 — Magic links die on contact with Gmail's link scanner
+**Context:** Wiring up Phase 0.4's single-user auth with Supabase magic
+link. The route handler at `/auth/confirm` looked correct, matched
+Supabase's own docs examples, and the redirect logic tested clean —
+but every real attempt came back "Email link is invalid or has
+expired," immediately, every time.
+**What I thought:** The bug was in my code — a wrong query param name, a
+misconfigured redirect URL, something in the PKCE vs. token_hash
+distinction I'd gotten backwards. (I did find and fix a real instance of
+that: the route was reading `token_hash`/`type`, but `@supabase/ssr`'s
+default PKCE flow sends `code` instead. Fixing that was necessary but
+not sufficient — the failures continued after.)
+**What was actually true:** Supabase's auth logs showed a `login` event
+succeeding at their end, moments before the user's own click failed with
+`otp_expired`. Their troubleshooting docs name this exactly: email
+security scanners (Gmail's among them) prefetch links in incoming mail
+to check for phishing, silently consuming the one-time-use token via a
+plain `GET` before the human ever clicks. The token isn't expired by
+time — it's expired by an invisible second request. No amount of fixing
+the query-param handling touches this, because the request that
+actually breaks things never reaches application code at all.
+**Why it matters:** A "flaky" auth failure that reproduces 100% of the
+time isn't flaky — it's deterministic, which means something is racing
+predictably, not intermittently. The fix, also from Supabase's own docs,
+is structural rather than a config tweak: never let a plain `GET`
+perform a state-changing, single-use action. `/auth/confirm` is now a
+page with a "Sign in" button — a Server Action only fires on the actual
+form submission, so a prefetcher can fetch the page all it wants without
+spending the token. Any one-time link (password reset, email
+verification, invites) sent to an address that might sit behind
+enterprise or Gmail-style link scanning needs the same shape: land, then
+click — never verify-on-load.
+**Portfolio-worthy:** yes
+
 ### 2026-08-10 — Supabase exposes every public table by default
 **Context:** Standing up the Supabase project and running the first Drizzle
 migration in Phase 0.3 — a single throwaway `phase0_healthcheck` table just to
