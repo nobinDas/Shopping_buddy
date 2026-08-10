@@ -14,7 +14,8 @@
     "db:migrate": "drizzle-kit migrate",
     "test": "vitest run tests/unit",
     "test:int": "vitest run tests/integration",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:int"
   },
   "packageManager": "pnpm@10.34.5",
   "devDependencies": {
