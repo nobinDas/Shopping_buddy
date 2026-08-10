@@ -11,7 +11,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "test": "vitest run tests/unit",
+    "test:int": "vitest run tests/integration"
   },
   "packageManager": "pnpm@10.34.5",
   "devDependencies": {
@@ -28,7 +30,8 @@
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.66.0"
+    "typescript-eslint": "^8.66.0",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
