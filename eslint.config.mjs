@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
@@ -47,7 +48,8 @@ export default tseslint.config(
                 '../providers/**',
                 '../db/**',
               ],
-              message: 'domain/ is pure — no I/O. Move this call into services/ and pass data in instead.',
+              message:
+                'domain/ is pure — no I/O. Move this call into services/ and pass data in instead.',
             },
           ],
         },
@@ -64,13 +66,16 @@ export default tseslint.config(
           patterns: [
             {
               group: ['**/server/**'],
-              message: 'src/lib is client-safe; importing src/server/** here risks shipping secrets to the browser. See docs/SECURITY.md.',
+              message:
+                'src/lib is client-safe; importing src/server/** here risks shipping secrets to the browser. See docs/SECURITY.md.',
             },
           ],
         },
       ],
     },
   },
+  // Must be last: turns off any ESLint rule that fights Prettier's formatting.
+  eslintConfigPrettier,
 );
 
 // NOTE: the ARCHITECTURE.md rule "client components never import src/server/**"
