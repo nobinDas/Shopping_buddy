@@ -16,10 +16,10 @@ setup, and it means the test harness exists before there is anything to test.
 Small — a few days, not weeks. If it grows past that, something is being
 over-built.
 
-- [ ] Repo, TypeScript config, lint, formatter
-- [ ] Next.js app skeleton with the folder structure from `ARCHITECTURE.md`
-- [ ] Supabase project, Drizzle configured, one trivial migration applied end to end
-- [ ] Single-user auth working
+- [x] Repo, TypeScript config, lint, formatter
+- [x] Next.js app skeleton with the folder structure from `ARCHITECTURE.md`
+- [x] Supabase project, Drizzle configured, one trivial migration applied end to end
+- [x] Single-user auth working
 - [ ] Vitest configured with one passing unit test
 - [ ] Playwright configured with one passing smoke test
 - [ ] `pnpm verify` script wired and green

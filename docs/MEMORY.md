@@ -17,8 +17,8 @@ session — a session that only answered questions changes nothing.
 
 ## Current state
 
-**Phase:** 0 — Foundation, not started
-**Last updated:** _(set on first real update)_
+**Phase:** 0 — Foundation, in progress (4 of 9 checklist items done)
+**Last updated:** 2026-08-10
 
 ### Done
 
@@ -28,15 +28,23 @@ session — a session that only answered questions changes nothing.
 - Insurance re-quoting descoped with rationale recorded
 - Documentation set written
 - Stack chosen (see `TOOLS.md`)
+- Repo initialised, pushed to `github.com/nobinDas/Shopping_buddy`
+- TypeScript strict config, ESLint (flat config, boundary rules for
+  `domain/` and `lib/`), Prettier — all wired and verified
+- Next.js App Router skeleton, Tailwind v4 wired to the `DESIGN.md` tokens
+- Real Supabase project (`shopping buddy`), Drizzle configured, one trivial
+  migration applied and independently verified (see ADR-006)
+- Single-user auth: Supabase magic-link sign-in, middleware-gated routes,
+  sign-out — working end to end against real email delivery (Gmail SMTP)
 
 ### In progress
 
-Nothing yet.
+Nothing mid-task. Phase 0 checklist items 0.5–0.9 not yet started.
 
 ### Next
 
-Phase 0 checklist in `PHASES.md`. First real task: repo initialisation and the
-Next.js skeleton matching `ARCHITECTURE.md`.
+Phase 0.5 — Vitest configured with one passing unit test, then 0.6 Playwright,
+0.7 `pnpm verify`, 0.8 CI, 0.9 finish `.env.example`.
 
 ### Blocked
 
@@ -49,7 +57,6 @@ Nothing.
 Things genuinely undecided. Resolving one means moving it to `DECISIONS.md` with
 its rationale and deleting it here.
 
-- Local development database: Docker Postgres or a Supabase branch?
 - Encryption key management for OAuth tokens: env var for now, but what is the
   rotation story?
 - Timezone handling for billing dates — the user's zone, or the vendor's? They
@@ -84,6 +91,27 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-08-10 — Phase 0.1–0.4 done: tooling, skeleton, Supabase, auth
+**Did:** Repo/TS/ESLint/Prettier set up and verified. Next.js App Router
+skeleton with Tailwind wired to `DESIGN.md` tokens. Real Supabase project
+created, Drizzle configured, first migration applied and confirmed via
+`list_tables`. Single-user magic-link auth built, debugged, and confirmed
+working end to end (real email received, real click-through, real session).
+Three real bugs found and fixed along the way, recorded in `LEARNED.md`:
+Supabase's PostgREST exposes every table by default (RLS must be explicit
+per table going forward — now a `SECURITY.md` checklist item), Gmail's
+link-prefetching silently burns magic-link tokens before the user clicks
+(fixed with a click-to-confirm page instead of verify-on-GET), and Gmail
+SMTP requires an App Password, not the account password or any other
+credential — this got confused with the database password mid-session and
+cost real time.
+**Decided:** Real Supabase project for local dev too, not Docker Postgres —
+see ADR-006. Rationale: Phase 0.4 needed real Supabase Auth, which Docker
+Postgres alone can't provide.
+**Next:** Phase 0.5 — Vitest configured with one passing unit test.
 
 ---
 

@@ -27,6 +27,29 @@ not actually examined.
 
 ---
 
+## ADR-006 — Real Supabase project for local dev, not Docker Postgres
+**Date:** 2026-08-10
+**Status:** accepted
+**Context:** `MEMORY.md` left this open since scoping: develop locally against
+Docker Postgres, or against a real hosted Supabase project from day one. Phase
+0.4 needed Supabase Auth (magic-link sign-in) working, which only exists on
+the hosted product — Docker Postgres alone can't provide it.
+**Decision:** One real Supabase project (`shopping buddy`), used for both
+local development and, later, production. No Docker Postgres.
+**Consequences:** Local dev now depends on network access and Supabase's
+uptime — offline development isn't possible the way it would be against a
+local container. Schema changes go through the real project rather than a
+disposable local database, so a broken migration is a broken shared
+environment, not a wipe-and-restart. In exchange: Auth, RLS, and the
+Postgres-pooler behavior get exercised for real from the start instead of
+being simulated and re-verified later against the hosted product.
+**Alternatives considered:** Docker Postgres for dev, real Supabase only for
+staging/production. Rejected for now — Phase 0.4 needed real Supabase Auth
+immediately, and running two divergent setups (Docker schema-only locally,
+full Supabase later) would mean re-doing the auth verification work this
+phase already did. Revisit if hosted-project friction (network dependency,
+shared-schema risk) becomes a real problem before Phase 1 ships.
+
 ## ADR-005 — Phase 0 added before Phase 1
 **Date:** 2026-08-08
 **Status:** accepted
