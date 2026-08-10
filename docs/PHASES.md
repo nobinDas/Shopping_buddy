@@ -22,7 +22,7 @@ over-built.
 - [x] Single-user auth working
 - [x] Vitest configured with one passing unit test
 - [x] Playwright configured with one passing smoke test
-- [ ] `pnpm verify` script wired and green
+- [x] `pnpm verify` script wired and green
 - [ ] CI running `pnpm verify` on push
 - [ ] `.env.example` complete and documented
 
