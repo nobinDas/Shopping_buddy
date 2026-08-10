@@ -20,7 +20,7 @@ over-built.
 - [x] Next.js app skeleton with the folder structure from `ARCHITECTURE.md`
 - [x] Supabase project, Drizzle configured, one trivial migration applied end to end
 - [x] Single-user auth working
-- [ ] Vitest configured with one passing unit test
+- [x] Vitest configured with one passing unit test
 - [ ] Playwright configured with one passing smoke test
 - [ ] `pnpm verify` script wired and green
 - [ ] CI running `pnpm verify` on push
