@@ -86,10 +86,9 @@ export default tseslint.config(
 );
 
 // NOTE: the ARCHITECTURE.md rule "client components never import src/server/**"
-// still isn't statically enforced. 'use client' now exists as a directive,
-// but ESLint's no-restricted-imports can't key off a directive inside a file —
-// it only matches file paths/globs. Two real options when server/ gains real
-// code: (1) the `server-only` package (throws at build time if a server file
-// ends up in the client bundle — the standard Next.js answer to this exact
-// problem), or (2) eslint-plugin-boundaries for a lint-time version. Pick one
-// in Phase 1 when src/server/providers actually holds token-handling code.
+// is enforced at build time, not lint time, starting with
+// src/server/providers/supabase.ts: it imports 'server-only', which throws a
+// build error the moment that module ends up in a client bundle. Add the same
+// import to every new file under src/server/ as it gains real code — ESLint
+// still can't key off the 'use client' directive itself (no-restricted-imports
+// only matches file paths/globs), so this is the actual enforcement mechanism.
