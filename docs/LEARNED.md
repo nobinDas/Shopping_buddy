@@ -50,6 +50,29 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-08-10 — Supabase exposes every public table by default
+**Context:** Standing up the Supabase project and running the first Drizzle
+migration in Phase 0.3 — a single throwaway `phase0_healthcheck` table just to
+prove the pipeline works end to end.
+**What I thought:** A table only becomes reachable once something in the app
+deliberately queries it. Creating a table is a schema change, not an exposure
+change.
+**What was actually true:** Supabase's advisors flagged the new table
+immediately: Row Level Security is off by default on every table, and with it
+off, the table is fully readable and writable by anyone holding the anon /
+publishable key — which is meant to be public, and will end up in the client
+bundle the moment Supabase Auth is wired in (Phase 0.4). The table doesn't
+need to be queried from the app for this to be a real exposure; PostgREST
+exposes it the moment it exists.
+**Why it matters:** On a platform that auto-exposes schema over REST, "create
+the table" and "ship the table" are the same action unless RLS is configured
+first. Every table Phase 1a+ creates that holds anything real — `subscriptions`,
+`price_history`, `email_accounts` (encrypted tokens or not) — needs an explicit
+RLS policy before it's populated, not as a follow-up hardening pass. Left off
+deliberately on `phase0_healthcheck` only because it's empty, unqueried
+plumbing that Phase 1a deletes outright.
+**Portfolio-worthy:** no
+
 ### 2026-08-08 — Manual entry as primary source, not fallback
 **Context:** Scoping the Phase 1 data model, before writing any code.
 **What I thought:** Email parsing is the product, and manual entry is the fallback

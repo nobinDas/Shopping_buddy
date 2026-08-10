@@ -97,3 +97,6 @@ Before any phase is declared complete:
 - [ ] All OAuth scopes still read-only and still minimal
 - [ ] Test fixtures anonymised
 - [ ] Dependencies audited (`pnpm audit`)
+- [ ] Row Level Security enabled with explicit policies on every table holding
+      real data (Supabase exposes `public` schema tables over REST to the
+      anon key by default — see `docs/LEARNED.md`, 2026-08-10)

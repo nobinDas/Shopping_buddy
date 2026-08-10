@@ -7,6 +7,9 @@ playwright-report
 test-results
 pnpm-lock.yaml
 
+# Drizzle-generated migration metadata — machine output, not hand-edited.
+src/server/db/migrations/meta
+
 # Hand-authored prose — deliberate structure (ADR format, tables) that
 # Prettier's markdown reflow would fight rather than preserve.
 *.md
