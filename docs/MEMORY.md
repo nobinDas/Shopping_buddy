@@ -17,7 +17,7 @@ session — a session that only answered questions changes nothing.
 
 ## Current state
 
-**Phase:** 0 — Foundation, in progress (4 of 9 checklist items done)
+**Phase:** 0 — Foundation, checklist complete and deployed. Moving to Phase 1.
 **Last updated:** 2026-08-10
 
 ### Done
@@ -36,15 +36,27 @@ session — a session that only answered questions changes nothing.
   migration applied and independently verified (see ADR-006)
 - Single-user auth: Supabase magic-link sign-in, middleware-gated routes,
   sign-out — working end to end against real email delivery (Gmail SMTP)
+- Vitest (real unit test: `addMoney`, enforces the no-cross-currency-arithmetic
+  rule), Playwright (real E2E: auth redirect gate + login page render)
+- `pnpm verify` wired (typecheck + lint + test + test:int) and genuinely green
+  — the integration test writes/reads the real Supabase Postgres inside a
+  transaction, rolled back and independently confirmed empty afterward
+- CI (GitHub Actions): `verify` job on every push/PR, `e2e` job on PR only,
+  watched to a real green run, not just configured
+- `.env.example` verified complete against an actual grep of the codebase's
+  `process.env` reads, not assumed
+- Deployed to Vercel production: `https://shopping-buddy-beta.vercel.app`,
+  auth gate verified live (unauthenticated `/` → 307 → `/login`, form renders)
 
 ### In progress
 
-Nothing mid-task. Phase 0 checklist items 0.5–0.9 not yet started.
+Nothing mid-task. All 9 Phase 0 checklist items and the exit criteria are done.
 
 ### Next
 
-Phase 0.5 — Vitest configured with one passing unit test, then 0.6 Playwright,
-0.7 `pnpm verify`, 0.8 CI, 0.9 finish `.env.example`.
+Phase 1a — subscriptions schema (money as integer minor units), create/edit/
+archive, billing cycle handling, next-billing-date computation, list view.
+See `PHASES.md`.
 
 ### Blocked
 
@@ -59,6 +71,15 @@ its rationale and deleting it here.
 
 - Encryption key management for OAuth tokens: env var for now, but what is the
   rotation story?
+- Supabase Auth's "Site URL" setting can only point at one place — currently
+  `localhost:3000`, kept there deliberately so local magic-link testing keeps
+  working. Production (`shopping-buddy-beta.vercel.app`) is deployed and its
+  auth *gate* works, but a magic-link request made from production would
+  currently email a localhost link. Revisit when the app moves from "being
+  built" to "in real daily use" — likely needs separate dev/prod Supabase
+  projects (a real cost: two schemas to keep in sync) rather than the single
+  shared project from ADR-006, or accept manually flipping Site URL when
+  testing production auth end to end.
 - Timezone handling for billing dates — the user's zone, or the vendor's? They
   diverge for annual renewals near month boundaries.
 - Sync frequency: daily is the assumption. Is it enough to catch a trial
@@ -91,6 +112,24 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-08-10 — Phase 0 complete: 0.5–0.9 plus a real Vercel deploy
+**Did:** Vitest, Playwright, `pnpm verify`, CI, and `.env.example` finished —
+all with real content, not placeholders (see each item's own commit message
+for specifics; summarized in Current State above). Linked and deployed the
+project to Vercel production (`nobindas-projects/shopping-buddy`), set the
+three required env vars via `vercel env add` piped from `.env.local` (never
+typed into chat), and verified the live deployment's auth gate with curl —
+same checks used locally throughout Phase 0.4. GitHub's Vercel integration
+failed to auto-connect (would need re-authorizing the Vercel GitHub App
+separately); deploys are CLI-triggered for now, not automatic on push.
+**Decided:** Leave Supabase Auth's Site URL on localhost rather than switching
+to production — added as an open question above rather than silently
+resolved either way.
+**Next:** Phase 1a — subscriptions schema and manual entry, the first Phase 1
+feature and the primary data source per `PROJECT_BRIEF.md`.
 
 ---
 

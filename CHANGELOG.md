@@ -11,6 +11,10 @@ entry says what changed from the user's point of view.
 ### Added
 - Project documentation set: brief, phases, architecture, data model, design,
   tools, testing, security, decisions, glossary.
+- Phase 0 foundation: Next.js App Router skeleton with Tailwind wired to the
+  design tokens, Supabase Postgres + Drizzle ORM, single-user auth via
+  Supabase magic-link sign-in, Vitest + Playwright test harness, `pnpm verify`
+  CI on every push, deployed to Vercel production.
 
 ---
 

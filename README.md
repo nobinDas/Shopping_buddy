@@ -64,5 +64,6 @@ Requires Node 20+, pnpm, and a Supabase project.
 
 ## Status
 
-Pre-build. Phase 0 not started. Current state of play is always in
+Phase 0 (foundation) complete, deployed to Vercel. Starting Phase 1
+(subscription tracker MVP). Current state of play is always in
 `docs/MEMORY.md`.
