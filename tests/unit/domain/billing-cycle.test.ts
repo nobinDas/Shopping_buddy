@@ -65,6 +65,39 @@ describe('computeNextBillingDate', () => {
 
       expect(result).toBe('2025-03-31');
     });
+
+    it('clamps a 30th-of-month anchor to Feb 28 in a non-leap year', () => {
+      // The 30th is a far more common real billing date than the 31st, and
+      // exercises the same clamping path — worth naming explicitly rather
+      // than leaving it only implicitly covered by the 31st-anchor cases.
+      const result = computeNextBillingDate({
+        anchorDate: '2026-01-30',
+        cycle: 'monthly',
+        asOf: '2026-02-01',
+      });
+
+      expect(result).toBe('2026-02-28');
+    });
+
+    it('clamps a 30th-of-month anchor to Feb 29 in a leap year', () => {
+      const result = computeNextBillingDate({
+        anchorDate: '2028-01-30',
+        cycle: 'monthly',
+        asOf: '2028-02-01',
+      });
+
+      expect(result).toBe('2028-02-29');
+    });
+
+    it('recovers the 30th in March rather than staying collapsed at 28', () => {
+      const result = computeNextBillingDate({
+        anchorDate: '2026-01-30',
+        cycle: 'monthly',
+        asOf: '2026-03-01',
+      });
+
+      expect(result).toBe('2026-03-30');
+    });
   });
 
   describe('leap years', () => {
