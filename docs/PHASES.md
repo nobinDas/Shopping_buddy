@@ -1,7 +1,8 @@
 # Phases
 
-Six phases. Each has a bounded scope and explicit exit criteria. A phase is done
-when its exit criteria pass — not when the next phase starts looking interesting.
+Seven phases. Each has a bounded scope and explicit exit criteria. A phase is
+done when its exit criteria pass — not when the next phase starts looking
+interesting.
 
 Progress lives here as checkboxes. `MEMORY.md` holds the narrative state.
 
@@ -41,18 +42,18 @@ Built first, deliberately. It is the primary data source, it delivers standalone
 value with no dependency on OAuth or LLM classification, and it forces the schema
 to be settled before anything writes to it automatically.
 
-- [ ] `subscriptions` schema with money as integer minor units
-- [ ] Create, edit, archive a subscription
-- [ ] Billing cycle handling: monthly, quarterly, annual, custom interval
-- [ ] Next-billing-date computation, with tests for month-end and leap-year edges
-- [ ] List view
+- [x] `subscriptions` schema with money as integer minor units
+- [x] Create, edit, archive a subscription
+- [x] Billing cycle handling: monthly, quarterly, annual, custom interval
+- [x] Next-billing-date computation, with tests for month-end and leap-year edges
+- [x] List view
 
 ### 1b — Dashboard
 
-- [ ] Total monthly burn and annualised burn
-- [ ] Upcoming billing timeline
+- [x] Total monthly burn and annualised burn
+- [x] Upcoming billing timeline
 - [ ] Per-subscription detail with price history
-- [ ] Empty state that guides toward first entry
+- [x] Empty state that guides toward first entry
 
 ### 1c — Multi-inbox connection
 
@@ -85,6 +86,59 @@ The crux of the phase. Algorithm and match rules are in `DATA_MODEL.md`.
 confirmed by a real email; a real price increase detected and surfaced; a
 subscription discovered that was never manually entered; no duplicates across
 inboxes; reconciliation logic at high unit-test coverage.
+
+---
+
+## Phase 1.5 — Frontend design pass
+
+**Not in the original plan; added by explicit decision after 1a and most of 1b
+were built with real, wired-up data (see ADR-007).** Every phase from here on
+— 1c, 1e, and Phases 2 through 5 — is a real backend integration (OAuth, an
+LLM pipeline, a mapping API, retailer price feeds) behind a screen that
+doesn't exist yet. Building the backend first, phase by phase, means the
+product's shape only becomes visible one feature at a time. This phase
+inverts that: design and build every remaining screen against mock/static
+data first, so the whole concept can be clicked through end to end before any
+of the harder backend work begins. It does not change the order real data
+gets wired in — that still happens phase by phase, exactly as scoped below —
+it only front-loads what each of those screens looks like.
+
+- [ ] shadcn/ui installed and wired to the `DESIGN.md` tokens (`components/ui/`
+      is currently empty; `DESIGN.md` already specifies shadcn as the
+      functional-component layer, and nothing built so far uses it)
+- [ ] Burn ribbon — the signature dashboard element from `DESIGN.md` (twelve
+      months, every recurring commitment as a band positioned by billing date
+      and scaled by amount), including its vertical-below-768px responsive
+      behaviour
+- [ ] 1b: per-subscription detail screen with price history — real data, no
+      backend work needed (schema and price_history writes already exist);
+      the one item still open on 1b's own checklist
+- [ ] 1c: connected-accounts screen — connect, list, disconnect, and a
+      reconnect-needed state (mock data)
+- [ ] 1e: review queue screen — confirm / price-update / discovery /
+      cancellation proposal cards, with `reasoning` shown on each (mock data)
+- [ ] Phase 2: insurance entry form and list, renewal reminder surfaced on the
+      dashboard (mock data)
+- [ ] Phase 3: shopping lists — list switcher, items with quantity/notes,
+      store price per item, list total (mock data)
+- [ ] Phase 4: route/deadline planner — trip view, leave-by time, consolidated-
+      trip view (mock data)
+- [ ] Phase 5: price timing — price history chart, buy-now-or-wait card,
+      price-drop watchlist (mock data)
+- [ ] Empty, loading, and error states designed for every screen above, not
+      only the dashboard's
+- [ ] `DESIGN.md`'s quality floor met screen by screen: responsive to 375px,
+      visible keyboard focus, `prefers-reduced-motion` respected, WCAG AA
+      contrast
+
+**Exit criteria:** every screen in the product — across every remaining phase
+— renders in the browser against mock data (except 1b's detail screen, which
+is real), styled per `DESIGN.md`, and is navigable end to end.
+
+**Explicitly not included:** any real OAuth flow, LLM call, mapping API, or
+retailer integration. Screens here are shells over fixture data — wiring each
+one to its real backend happens inside that screen's own phase, exactly as
+already scoped below.
 
 ---
 

@@ -27,6 +27,39 @@ not actually examined.
 
 ---
 
+## ADR-007 — Frontend design pass inserted between Phase 1 and Phase 2
+**Date:** 2026-08-21
+**Status:** accepted
+**Context:** 1a is complete and 1b is nearly complete, both with real,
+end-to-end wired data. Every phase after this point — 1c (OAuth), 1d (LLM
+detection), 1e (reconciliation), and Phases 2–5 (insurance, shopping,
+routing, price timing) — is substantial backend integration work, and none
+of it has a screen yet. Built phase by phase as originally scoped, the
+product's overall shape would only become visible incrementally, one backend
+integration at a time.
+**Decision:** A new phase, 1.5, inserted between Phase 1 and Phase 2: design
+and build every remaining screen in the product against mock/static data
+before doing any further real backend integration. Real data replaces the
+mocks phase by phase afterward, in the same order already scoped in
+`PHASES.md` — this phase doesn't reorder that, it only front-loads what each
+screen looks like. The one exception is 1b's remaining item
+(per-subscription detail with price history), which gets built for real
+inside this phase since its backend already exists.
+**Consequences:** Delays 1c/1d/1e and Phases 2–5 by however long a full-app
+UI pass takes, and that work is provisional — screens built against
+fixtures may need rework once real data shapes (OAuth account states, LLM
+signal payloads, retailer price responses) turn out to differ from the
+mocks. In exchange, the whole product concept becomes clickable and
+reviewable before committing to the harder backend work in each later phase,
+and later phases build their backend to fit an already-decided screen
+instead of discovering the screen while also building the integration.
+**Alternatives considered:** Keep building phase by phase as originally
+scoped, designing each screen alongside its backend. Rejected per explicit
+user request — the goal here is to see and adjust the whole concept early,
+which a phase-by-phase build doesn't provide until every phase is done.
+
+---
+
 ## ADR-006 — Real Supabase project for local dev, not Docker Postgres
 **Date:** 2026-08-10
 **Status:** accepted
