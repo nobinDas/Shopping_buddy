@@ -18,8 +18,9 @@ session — a session that only answered questions changes nothing.
 ## Current state
 
 **Phase:** 1 — Subscription tracker MVP. Phase 0, 1a, and 1b all complete.
-Phase 1.5 (frontend design pass, ADR-007) in progress: shadcn/ui and the
-burn ribbon are done; six mock-data screens remain.
+Phase 1.5 (frontend design pass, ADR-007): 7 of 9 items done — every
+mock-data screen exists. Left: an empty/loading/error-state pass and a
+DESIGN.md quality-floor pass across all of them.
 **Last updated:** 2026-08-25
 
 ### Done
@@ -108,23 +109,61 @@ Phase 1.5 — in progress (see ADR-007), two of nine items done:
   New domain function `occurrencesInWindow` in `billing-cycle.ts` (8 tests)
   makes this possible: unlike `computeNextBillingDate`, it returns every
   occurrence in a date range, not just the next one
+- `app/(dashboard)/accounts/page.tsx` (1c, mock data): a provider dropdown
+  ("Connect an inbox"), a table of accounts with status badges, a
+  needs-reauth `Alert` using DESIGN.md's own example copy ("Gmail
+  connection expired. Reconnect to resume syncing."), and an
+  `AlertDialog`-confirmed disconnect that leaves the row visible in a
+  disconnected state (with Reconnect/Remove) rather than deleting it
+- `app/(dashboard)/review/page.tsx` (1e, mock data): proposal cards for all
+  five `reconciliation_proposals` types (confirm/price_update/date_update/
+  discovery/cancellation), every card showing its `reasoning` per
+  CLAUDE.md's "no silent recommendations" rule, colour-coded per DESIGN.md's
+  three signal colours, Accept/Reject moving a card between Pending/Resolved
+  `Tabs`
+- `app/(dashboard)/insurance/page.tsx` (Phase 2, mock data) + a
+  `RenewalReminder` component added to the *real* dashboard: a
+  Dialog-based add-policy form (auto vs medical, each its own real term
+  length), cards with due-soon highlighting once inside the configurable
+  reminder lead time. First screen to use the shadcn input/label/select/
+  textarea primitives
+- `app/(dashboard)/shopping/page.tsx` (Phase 3, mock data): four named
+  lists switched via `Tabs`, items with quantity/store/notes, a per-list
+  total that correctly excludes unpriced items rather than treating them as
+  zero (DESIGN.md: "'$0.00' and '—' mean different things")
+- `app/(dashboard)/trips/page.tsx` (Phase 4, mock data): real leave-by-time
+  arithmetic computed backward from a due time across multiple stops, each
+  stop's arrival checked against mock store hours for feasibility (flagged
+  when a stop would arrive before opening or after closing); one trip
+  consolidates two shopping lists into a single multi-stop trip
+- `app/(dashboard)/watchlist/page.tsx` (Phase 5, mock data): three watched
+  items, each a hand-rolled SVG sparkline (2px round-joined line, one
+  sparse endpoint label, per the dataviz skill's mark spec) plus a
+  buy-now-or-wait badge and written reasoning. A real bug caught by manual
+  verification: the endpoint label clipped into the card above it when a
+  trend's last point sat near the chart's own top edge — fixed by reserving
+  dedicated headroom in the SVG geometry rather than positioning the label
+  directly off the point
 
 Verification:
 
-- `pnpm verify` green: typecheck, lint, 93 unit tests, 11 integration tests
-- Manually exercised in a real browser against the real Supabase Postgres
-  across three sessions: create → dashboard burn updates correctly → edit
-  price → confirmed the `price_history` row directly in Postgres → archive
-  → dashboard falls back to empty state; the detail page's price-history
-  delta rendering with a real two-entry history; and the burn ribbon with
-  six varied real subscriptions (monthly/quarterly/annual, a same-week
-  cluster of two annual renewals) at both desktop and 390px mobile widths,
-  including keyboard-focus tooltip parity. Test rows cleaned up afterward
-  each time
-- Committed and pushed to `origin/main` through `c438381`; this session's
-  detail-page and Phase 1.5 work not yet committed. Per explicit user
-  request, recent
-  commits omit the `Co-Authored-By: Claude` trailer
+- `pnpm verify` green throughout: typecheck, lint, 93 unit tests, 11
+  integration tests (unchanged since the burn ribbon — every screen after
+  it is client-side mock state, nothing new to unit/integration-test)
+- Every one of the eight items above independently exercised live in a
+  real browser (not just typechecked): subscription CRUD end to end against
+  real Postgres; the detail page's price-history delta rendering; the burn
+  ribbon at desktop and 390px mobile with keyboard-focus tooltip parity;
+  the accounts table's connect/reconnect/disconnect/remove flow including
+  the AlertDialog confirmation; the review queue's accept/reject moving
+  cards between tabs; the insurance dialog form actually adding a policy;
+  the shopping list's tab switching and empty state; the trip screen's
+  leave-by/feasibility math checked by hand against the rendered output;
+  and the watchlist sparkline bug found and re-verified fixed. Any seeded
+  test data cleaned up from Postgres afterward each time
+- Committed and pushed to `origin/main` through `53c0bd6`. Per explicit
+  user request, commits in this repo omit the `Co-Authored-By: Claude`
+  trailer
 
 ### In progress
 
@@ -132,11 +171,11 @@ Nothing mid-task.
 
 ### Next
 
-Phase 1.5, continued: mock-data screens for 1c (connected accounts), 1e
-(review queue), and Phases 2–5 (insurance, shopping lists, route planner,
-price timing), then empty/loading/error states across all of them, then a
-DESIGN.md quality-floor pass (375px, focus, reduced-motion, contrast). Only
-after all of that does 1c's real OAuth work begin. See `PHASES.md`.
+Phase 1.5's last two items, both cross-cutting passes over every screen
+built above (not new screens): empty/loading/error states, then DESIGN.md's
+quality floor (375px responsive, visible keyboard focus,
+`prefers-reduced-motion`, WCAG AA contrast). Only after both does 1c's real
+OAuth work begin. See `PHASES.md`.
 
 ### Blocked
 
@@ -192,6 +231,29 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-08-25 — Phase 1.5's six mock-data screens
+**Did:** Built all six remaining mock-data screens: `accounts` (1c),
+`review` (1e), `insurance` (Phase 2, plus a real dashboard `RenewalReminder`
+banner), `shopping` (Phase 3), `trips` (Phase 4), `watchlist` (Phase 5) —
+see the Phase 1.5 section under Current State above for what each one
+covers. Installed the shadcn input/label/select/textarea primitives for the
+first form-heavy screens (insurance, shopping). Ran `pnpm verify` and
+manually exercised every screen live in the browser after building it, not
+just at the end — this caught a genuine label-collision bug in the
+watchlist's hand-rolled SVG sparkline immediately rather than at a final
+pass, fixed by reserving headroom in the chart geometry, per the dataviz
+skill's "a label that won't fit doesn't get clipped." Checked off all six remaining screen items in
+`PHASES.md` — Phase 1.5 is now 7 of 9 done.
+**Decided:** Nothing new scoping-wise — this was straight execution against
+Phase 1.5's already-agreed item list (ADR-007), verifying and committing
+one screen at a time per the user's explicit "keep going through them one
+at a time" instruction, rather than batching them into one large commit.
+**Next:** Phase 1.5's final two items — empty/loading/error states and the
+DESIGN.md quality-floor pass, both cross-cutting over every screen rather
+than new screens of their own.
 
 ---
 
