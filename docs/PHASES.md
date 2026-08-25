@@ -119,7 +119,7 @@ it only front-loads what each of those screens looks like.
       cancellation proposal cards, with `reasoning` shown on each (mock data)
 - [x] Phase 2: insurance entry form and list, renewal reminder surfaced on the
       dashboard (mock data)
-- [ ] Phase 3: shopping lists — list switcher, items with quantity/notes,
+- [x] Phase 3: shopping lists — list switcher, items with quantity/notes,
       store price per item, list total (mock data)
 - [ ] Phase 4: route/deadline planner — trip view, leave-by time, consolidated-
       trip view (mock data)
