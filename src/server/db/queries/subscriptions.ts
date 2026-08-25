@@ -1,9 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { db, type DbClient } from '@/server/db';
 import { subscriptions, priceHistory } from '@/server/db/schema';
 
 export type SubscriptionRow = typeof subscriptions.$inferSelect;
 export type NewSubscription = typeof subscriptions.$inferInsert;
+export type PriceHistoryRow = typeof priceHistory.$inferSelect;
 export type NewPriceHistory = typeof priceHistory.$inferInsert;
 
 /**
@@ -81,4 +82,21 @@ export async function insertPriceHistory(
   client: DbClient = db,
 ): Promise<void> {
   await client.insert(priceHistory).values(values);
+}
+
+/**
+ * Fetches one subscription's price_history, oldest first — the order the
+ * detail page needs to compute the delta between each entry and the one
+ * before it (see docs/DESIGN.md: "Netflix went from $15.49 to $17.99 on
+ * 3 March").
+ */
+export async function getPriceHistoryForSubscription(
+  subscriptionId: string,
+  client: DbClient = db,
+): Promise<PriceHistoryRow[]> {
+  return client
+    .select()
+    .from(priceHistory)
+    .where(eq(priceHistory.subscriptionId, subscriptionId))
+    .orderBy(asc(priceHistory.effectiveFrom));
 }

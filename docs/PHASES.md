@@ -52,7 +52,7 @@ to be settled before anything writes to it automatically.
 
 - [x] Total monthly burn and annualised burn
 - [x] Upcoming billing timeline
-- [ ] Per-subscription detail with price history
+- [x] Per-subscription detail with price history
 - [x] Empty state that guides toward first entry
 
 ### 1c — Multi-inbox connection
@@ -110,7 +110,7 @@ it only front-loads what each of those screens looks like.
       months, every recurring commitment as a band positioned by billing date
       and scaled by amount), including its vertical-below-768px responsive
       behaviour
-- [ ] 1b: per-subscription detail screen with price history — real data, no
+- [x] 1b: per-subscription detail screen with price history — real data, no
       backend work needed (schema and price_history writes already exist);
       the one item still open on 1b's own checklist
 - [ ] 1c: connected-accounts screen — connect, list, disconnect, and a

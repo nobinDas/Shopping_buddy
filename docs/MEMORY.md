@@ -17,10 +17,9 @@ session — a session that only answered questions changes nothing.
 
 ## Current state
 
-**Phase:** 1 — Subscription tracker MVP. Phase 0 complete and deployed. 1a
-fully done; 1b done except one item. A new Phase 1.5 (frontend design pass)
-is now inserted before 1c — see ADR-007.
-**Last updated:** 2026-08-21
+**Phase:** 1 — Subscription tracker MVP. Phase 0, 1a, and 1b all complete.
+Phase 1.5 (frontend design pass) is next, inserted before 1c — see ADR-007.
+**Last updated:** 2026-08-25
 
 ### Done
 
@@ -66,21 +65,32 @@ Phase 1a — complete:
   monthly-equivalent, rounds at each conversion, buckets by currency
 - `lib/dates.ts`: `formatDate`
 
-Phase 1b — done except price history detail:
+Phase 1b — complete:
 
 - Dashboard (`(dashboard)/page.tsx`): monthly + annualised burn,
   upcoming-billing list (recomputed next billing date, not the stored
   column), empty state
+- `app/(dashboard)/subscriptions/[id]/page.tsx`: per-subscription detail —
+  current price, recomputed next billing date, notes, and price history
+  (oldest first) with delta copy per `DESIGN.md` ("Went from $15.49 to
+  $17.99"), the increase coloured in the oxblood `flag` token. Real data
+  throughout, no mocks — the write path already populates `price_history`
+  correctly. Added `getPriceHistoryForSubscription` to
+  `db/queries/subscriptions.ts` (ordered by `effectiveFrom` ascending) and
+  linked subscription names on the list page to this screen
 
 Verification:
 
-- `pnpm verify` green: typecheck, lint, 85 unit tests, 9 integration tests
-- Manually exercised in a real browser against the real Supabase Postgres:
-  create → dashboard burn updates correctly → edit price → confirmed the
-  `price_history` row directly in Postgres → archive → dashboard correctly
-  falls back to the empty state. Test rows cleaned up afterward
-- Committed (`13f8cd0`) and pushed to `origin/main` as of the last session;
-  this session's changes not yet committed
+- `pnpm verify` green: typecheck, lint, 85 unit tests, 11 integration tests
+- Manually exercised in a real browser against the real Supabase Postgres
+  across two sessions: create → dashboard burn updates correctly → edit
+  price → confirmed the `price_history` row directly in Postgres → archive
+  → dashboard falls back to empty state; and separately, the detail page's
+  price-history delta rendering with a real two-entry history. Test rows
+  cleaned up afterward each time
+- Committed and pushed to `origin/main` through `c438381`; this session's
+  detail-page work not yet committed. Per explicit user request, recent
+  commits omit the `Co-Authored-By: Claude` trailer
 
 ### In progress
 
@@ -90,11 +100,10 @@ Nothing mid-task.
 
 Phase 1.5 — frontend design pass (see ADR-007): every remaining screen in
 the product, across every remaining phase, built against mock data before
-any further real backend work. Starts with 1b's last open item
-(per-subscription detail with price history — real data, no backend work
-needed) and shadcn/ui installation, then the mock-data screens for 1c, 1e,
-and Phases 2–5. Only after that does 1c's real OAuth work begin. See
-`PHASES.md`.
+any further real backend work. 1b's real-data item is now done, so this
+starts with shadcn/ui installation and the burn ribbon, then the mock-data
+screens for 1c, 1e, and Phases 2–5. Only after that does 1c's real OAuth
+work begin. See `PHASES.md`.
 
 ### Blocked
 
@@ -150,6 +159,28 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-08-25 — Per-subscription detail with price history
+**Did:** Built `app/(dashboard)/subscriptions/[id]/page.tsx` — 1b's last open
+checklist item. Added `getPriceHistoryForSubscription` to
+`db/queries/subscriptions.ts` (ordered oldest-first, with an integration
+test covering both the ordering and the empty case), and linked subscription
+names on the list page to the new detail screen. Price history renders as
+`DESIGN.md` specifies — "Went from $15.49 to $17.99" — with increases
+coloured in the oxblood `flag` token; the starting price gets its own
+"Started at" line rather than a delta. `pnpm verify` green (85 unit, 11
+integration). Manually verified live: created a subscription, edited its
+price once, confirmed both the starting and the changed price_history rows
+rendered correctly with the right colouring and dates. Test data cleaned up
+afterward. Checked off 1b's last item in `PHASES.md` — Phase 1b is now fully
+complete.
+**Decided:** Nothing new — this was real data throughout (no mocks), since
+the backend for it already existed from the previous session's write-path
+work.
+**Next:** Phase 1.5 — frontend design pass, starting with shadcn/ui and the
+burn ribbon.
 
 ---
 
