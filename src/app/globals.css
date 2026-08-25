@@ -18,7 +18,21 @@
 
   --color-flag: #7a2e3c;
   --color-verified: #2f6f6a;
-  --color-pending: #b07a1e;
+  /* Darkened from DESIGN.md's original #B07A1E: that value measured 2.92:1
+     on --surface-2 and 3.24:1 on --surface, both below WCAG AA's 4.5:1 for
+     text — it only ever passed as a border/fill, never as the badge text
+     colour it's actually used for (review queue, watchlist). This shade
+     holds ≥5.4:1 on both surfaces. See docs/DESIGN.md's token table. */
+  --color-pending: #7a5216;
+
+  /* Form-control boundary colour — WCAG 1.4.11 requires ≥3:1 for a UI
+     component's boundary where that boundary is the only way to perceive
+     it (an input box with nothing else marking its edge). --color-rule
+     alone measures 1.39:1 against --surface, comfortably failing that —
+     it stays as-is for decorative dividers/card borders, which aren't
+     bound by 1.4.11, and this token exists only for real controls
+     (Input/Select/Textarea's shared --input token in :root below). */
+  --color-control-border: #787b76;
 
   --font-display: var(--font-bricolage);
   --font-sans: var(--font-plex-sans);
@@ -94,11 +108,16 @@ body {
   --secondary-foreground: var(--color-ink);
   --muted: var(--color-surface-2);
   --muted-foreground: var(--color-ink-muted);
-  --accent: var(--color-surface-2);
+  /* Not surface-2 — accent is the hover/focus highlight inside popover
+     panels (Select, DropdownMenu), which are themselves surface-2. Same
+     value would make keyboard focus genuinely invisible there — confirmed
+     live: tabbing through a Select's options showed no highlight at all
+     until this was fixed. --color-rule is the next step down. */
+  --accent: var(--color-rule);
   --accent-foreground: var(--color-ink);
   --destructive: var(--color-flag);
   --border: var(--color-rule);
-  --input: var(--color-rule);
+  --input: var(--color-control-border);
   --ring: var(--color-ink);
   /* No dedicated chart palette in DESIGN.md yet — reusing the three signal
      colours plus ink/ink-muted as a neutral stand-in until one is designed
@@ -130,5 +149,24 @@ body {
   }
   html {
     @apply font-sans;
+  }
+}
+
+/*
+ * DESIGN.md's quality floor: "prefers-reduced-motion respected." shadcn's
+ * Dialog/AlertDialog/Select/DropdownMenu open-close animations come from
+ * tw-animate-css, which has no built-in reduced-motion handling — confirmed
+ * by checking its source. This neutralises animation and transition
+ * duration site-wide rather than chasing down each animated component
+ * individually, so it also covers anything animated added later.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

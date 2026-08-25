@@ -174,37 +174,50 @@ export default function WatchlistPage() {
         <p className="mt-2 font-display text-2xl">Price watchlist</p>
       </header>
 
-      <div className="flex flex-col gap-4">
-        {watchItems.map((item) => {
-          const current = item.history[item.history.length - 1];
-          const lastUpdated = current ? formatDate(current.date) : '—';
+      {watchItems.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-rule bg-surface-2 p-12 text-center">
+          <p className="text-base text-ink">
+            Nothing on your watchlist yet. Add an item with a target price to track.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {watchItems.map((item) => {
+            const current = item.history[item.history.length - 1];
+            const lastUpdated = current ? formatDate(current.date) : '—';
 
-          return (
-            <Card key={item.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="font-display text-lg font-normal">{item.name}</CardTitle>
-                    <p className="mt-1 font-mono text-xs text-ink-muted">
-                      Target{' '}
-                      {formatMoney({ amountMinor: item.targetPriceMinor, currency: item.currency })}
-                      {' · updated '}
-                      {lastUpdated}
-                    </p>
+            return (
+              <Card key={item.id}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="font-display text-lg font-normal">
+                        {item.name}
+                      </CardTitle>
+                      <p className="mt-1 font-mono text-xs text-ink-muted">
+                        Target{' '}
+                        {formatMoney({
+                          amountMinor: item.targetPriceMinor,
+                          currency: item.currency,
+                        })}
+                        {' · updated '}
+                        {lastUpdated}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className={suggestionBadgeClass[item.suggestion]}>
+                      {suggestionLabel[item.suggestion]}
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className={suggestionBadgeClass[item.suggestion]}>
-                    {suggestionLabel[item.suggestion]}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <PriceSparkline history={item.history} currency={item.currency} />
-                <p className="text-sm text-ink-muted">{item.reasoning}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <PriceSparkline history={item.history} currency={item.currency} />
+                  <p className="text-sm text-ink-muted">{item.reasoning}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </main>
   );
 }

@@ -33,7 +33,7 @@ export default function LoginPage() {
               setEmail(event.target.value);
             }}
             placeholder="you@example.com"
-            className="border border-rule bg-surface px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+            className="border border-control-border bg-surface px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
           />
           <button
             type="submit"

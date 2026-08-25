@@ -17,10 +17,8 @@ session — a session that only answered questions changes nothing.
 
 ## Current state
 
-**Phase:** 1 — Subscription tracker MVP. Phase 0, 1a, and 1b all complete.
-Phase 1.5 (frontend design pass, ADR-007): 7 of 9 items done — every
-mock-data screen exists. Left: an empty/loading/error-state pass and a
-DESIGN.md quality-floor pass across all of them.
+**Phase:** 1 — Subscription tracker MVP. Phase 0, 1a, 1b, and now **1.5 are
+all complete**. Phase 1c (real Google/Microsoft OAuth) is next.
 **Last updated:** 2026-08-25
 
 ### Done
@@ -145,6 +143,47 @@ Phase 1.5 — in progress (see ADR-007), two of nine items done:
   dedicated headroom in the SVG geometry rather than positioning the label
   directly off the point
 
+Phase 1.5 closed out with an accessibility/states audit across everything
+above:
+
+- A post-build contrast audit (computed WCAG relative-luminance ratios, not
+  eyeballed) found and fixed two real failures: `--color-pending` (the ochre
+  badge text in the review queue and watchlist) measured 2.92–3.24:1 against
+  DESIGN.md's own surfaces, below the 4.5:1 text minimum — darkened to
+  `#7A5216` (≥5.4:1 on both). Form-control borders (`--input`, used by every
+  shadcn Input/Select/Textarea) measured 1.39:1 via `--color-rule`, below
+  WCAG 1.4.11's 3:1 floor for a UI component boundary — added a dedicated
+  `--color-control-border` token (`#787B76`) rather than darkening `--rule`
+  itself, which stays untouched for decorative dividers/table borders that
+  1.4.11 doesn't govern. Both changes recorded in `DESIGN.md`'s token table
+  with the measured numbers, per that file's own "revise deliberately" rule
+- A live keyboard-navigation check surfaced a real, more serious bug no
+  contrast calculation would have caught: `--accent` (the hover/focus
+  highlight shadcn's Select and DropdownMenu items use) and `--popover`
+  (the panel they sit inside) both resolved to the identical `surface-2`
+  value, making keyboard focus genuinely invisible when tabbing through
+  either component's options — confirmed by tabbing through a real Select
+  and seeing zero visual change. Fixed by pointing `--accent` at
+  `--color-rule` instead, confirmed fixed the same way afterward
+- Added a global `prefers-reduced-motion` override in `globals.css`:
+  `tw-animate-css` (the animation utilities shadcn's Dialog/AlertDialog/
+  Select/DropdownMenu draw on) has no built-in reduced-motion handling —
+  checked its source directly rather than assuming
+- Added the empty/loading/error states the checklist asked for: empty-state
+  guards on `trips`/`watchlist` (the only two screens missing one — every
+  other mock screen already had one from when it was first built), a shared
+  `(dashboard)/loading.tsx` skeleton, a `(dashboard)/error.tsx` boundary
+  that never renders `error.message` (could carry internal detail
+  CLAUDE.md's security rules don't want surfaced), and a styled
+  `(dashboard)/not-found.tsx` — before this, `notFound()` calls in the
+  subscription detail/edit pages fell through to Next's unstyled default,
+  confirmed live by visiting a nonexistent subscription id
+- Manually re-checked one thing that turned out NOT to be a bug: the
+  accounts table appeared to clip its Actions column at a narrow viewport
+  screenshot, but scrolling within it confirmed shadcn's `Table` already
+  wraps itself in `overflow-x-auto` and the content was reachable by
+  scroll, not lost — worth recording so it isn't "fixed" again by mistake
+
 Verification:
 
 - `pnpm verify` green throughout: typecheck, lint, 93 unit tests, 11
@@ -161,21 +200,27 @@ Verification:
   leave-by/feasibility math checked by hand against the rendered output;
   and the watchlist sparkline bug found and re-verified fixed. Any seeded
   test data cleaned up from Postgres afterward each time
-- Committed and pushed to `origin/main` through `53c0bd6`. Per explicit
+- The accessibility fixes each verified live and independently: the
+  contrast fix by re-reading the rendered badges, the focus fix by tabbing
+  through a real Select and a real DropdownMenu before and after, the
+  not-found boundary by visiting a nonexistent subscription id
+- Committed and pushed to `origin/main` through `53c0bd6` (the six screens);
+  this session's accessibility/states pass not yet committed. Per explicit
   user request, commits in this repo omit the `Co-Authored-By: Claude`
   trailer
 
 ### In progress
 
-Nothing mid-task.
+Nothing mid-task. **Phase 1.5 is complete — all 9 checklist items and its
+exit criteria met.**
 
 ### Next
 
-Phase 1.5's last two items, both cross-cutting passes over every screen
-built above (not new screens): empty/loading/error states, then DESIGN.md's
-quality floor (375px responsive, visible keyboard focus,
-`prefers-reduced-motion`, WCAG AA contrast). Only after both does 1c's real
-OAuth work begin. See `PHASES.md`.
+Phase 1c: real Google OAuth (read-only scope), then Microsoft OAuth,
+refresh-token storage encrypted at rest, and incremental sync with a
+per-account cursor. The accounts screen already exists (Phase 1.5, mock
+data) — this phase replaces its mock state with real queries against a new
+`email_accounts` table, not a new UI. See `PHASES.md`.
 
 ### Blocked
 
@@ -231,6 +276,36 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-08-25 — Phase 1.5 closed out: accessibility and states audit
+**Did:** Closed Phase 1.5's last two checklist items with a real audit, not
+a self-check — see the Phase 1.5 section under Current State above for the
+full list. Computed WCAG contrast ratios (relative-luminance formula, not
+eyeballed) for every colour pair actually in use and found two real
+failures: `--color-pending`'s badge text (2.92–3.24:1, needs 4.5) and form
+input borders via `--input` (1.39:1, needs 3:1 per WCAG 1.4.11) — fixed
+both and recorded the new values in `DESIGN.md` with the numbers. A live
+keyboard-navigation check then surfaced a more serious bug no contrast
+calculation would catch: Select and DropdownMenu focus was completely
+invisible because `--accent` and `--popover` resolved to the same colour —
+confirmed by tabbing through a real dropdown, fixed, and reconfirmed the
+same way. Added a global `prefers-reduced-motion` override (checked
+tw-animate-css's source first — it has none built in), a shared
+`(dashboard)/loading.tsx`, an `(dashboard)/error.tsx` that never renders
+`error.message`, a styled `(dashboard)/not-found.tsx` (previously fell
+through to Next's unstyled default — confirmed by visiting a nonexistent
+subscription id), and empty-state guards on `trips`/`watchlist`. Checked
+one suspected bug (accounts table clipping at a narrow width) and
+confirmed it wasn't one — shadcn's `Table` already scrolls internally.
+Checked off both remaining `PHASES.md` items — **Phase 1.5 is complete**.
+**Decided:** Fixed the WCAG failures by darkening the specific tokens
+(`--color-pending`, adding `--color-control-border`) rather than the
+generic `--color-rule`, to avoid changing decorative dividers/table
+borders that WCAG 1.4.11 doesn't govern — a scoped fix over a broad one.
+**Next:** Phase 1c — real Google/Microsoft OAuth, replacing the accounts
+screen's mock data with a real `email_accounts` table and real queries.
 
 ---
 

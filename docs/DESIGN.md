@@ -37,18 +37,34 @@ This is the one place to spend effort and boldness. Everything else stays quiet.
 Starting point. Revise deliberately, not by drift, and record any change here.
 
 ```css
---ground:    #12161A;   /* deep blue-black — dark surfaces, ribbon field */
---surface:   #EEF0EC;   /* cool grey-green paper, not cream */
---surface-2: #E2E5E0;   /* recessed panels, table zebra */
---ink:       #14181A;   /* primary text */
---ink-muted: #5D6560;   /* labels, captions, secondary */
---rule:      #C9CEC7;   /* hairlines, table borders */
+--ground:         #12161A;   /* deep blue-black — dark surfaces, ribbon field */
+--surface:        #EEF0EC;   /* cool grey-green paper, not cream */
+--surface-2:      #E2E5E0;   /* recessed panels, table zebra */
+--ink:            #14181A;   /* primary text */
+--ink-muted:      #5D6560;   /* labels, captions, secondary */
+--rule:           #C9CEC7;   /* hairlines, table borders — decorative only */
+--control-border: #787B76;   /* form-control boundaries (input/select/textarea) */
 
 /* Signal colours. Used sparingly and only with meaning. */
 --flag:      #7A2E3C;   /* oxblood — price increase, action needed */
 --verified:  #2F6F6A;   /* verdigris — confirmed against email */
---pending:   #B07A1E;   /* ochre — detected, awaiting review */
+--pending:   #7A5216;   /* ochre — detected, awaiting review */
 ```
+
+Two values above were revised after a Phase 1.5 contrast audit, not part of the
+original palette pass — recorded here per this file's own rule ("revise
+deliberately, not by drift"):
+
+- **`--pending`** was `#B07A1E`. Measured 2.92:1 on `--surface-2` and 3.24:1 on
+  `--surface` — both below WCAG AA's 4.5:1 text minimum, and it's used as badge
+  *text* (review queue, price watchlist), not just a border or fill. `#7A5216`
+  holds ≥5.4:1 on both surfaces, same ochre family, just deeper.
+- **`--control-border`** is new. `--rule` alone measures 1.39:1 against
+  `--surface` — nowhere near WCAG 1.4.11's 3:1 floor for a UI component
+  boundary a user has to perceive to use the control (an input box has nothing
+  else marking its edge). `--rule` stays exactly as it was for decorative
+  hairlines and table borders, which 1.4.11 doesn't govern; `--control-border`
+  exists only for Input/Select/Textarea.
 
 Oxblood and verdigris rather than red and green: they carry the same semantics
 without the traffic-light register, and they sit correctly against a cool paper

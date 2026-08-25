@@ -25,7 +25,7 @@ interface SubscriptionFormProps {
 const initialState: SubscriptionFormState = { error: null };
 
 const fieldClass =
-  'border border-rule bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ink';
+  'border border-control-border bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ink';
 const labelClass = 'text-xs tracking-wide text-ink-muted uppercase';
 
 export function SubscriptionForm({ action, submitLabel, initialValues }: SubscriptionFormProps) {

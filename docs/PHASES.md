@@ -125,9 +125,9 @@ it only front-loads what each of those screens looks like.
       trip view (mock data)
 - [x] Phase 5: price timing — price history chart, buy-now-or-wait card,
       price-drop watchlist (mock data)
-- [ ] Empty, loading, and error states designed for every screen above, not
+- [x] Empty, loading, and error states designed for every screen above, not
       only the dashboard's
-- [ ] `DESIGN.md`'s quality floor met screen by screen: responsive to 375px,
+- [x] `DESIGN.md`'s quality floor met screen by screen: responsive to 375px,
       visible keyboard focus, `prefers-reduced-motion` respected, WCAG AA
       contrast
 

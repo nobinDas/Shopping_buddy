@@ -120,61 +120,72 @@ export default function TripsPage() {
         <p className="mt-2 font-display text-2xl">Trips</p>
       </header>
 
-      <div className="flex flex-col gap-4">
-        {trips.map((trip) => {
-          const { leaveBy, stops, feasible } = scheduleTrip(trip);
-          const listNames = [...new Set(trip.stops.flatMap((s) => s.listNames))];
+      {trips.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-rule bg-surface-2 p-12 text-center">
+          <p className="text-base text-ink">
+            No trips planned yet. Add a deadline to a shopping list to plan one.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {trips.map((trip) => {
+            const { leaveBy, stops, feasible } = scheduleTrip(trip);
+            const listNames = [...new Set(trip.stops.flatMap((s) => s.listNames))];
 
-          return (
-            <Card key={trip.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="font-display text-lg font-normal">{trip.label}</CardTitle>
-                    <p className="mt-1 text-xs text-ink-muted">
-                      Covers {listNames.join(' + ')} — due {format(parseISO(trip.dueAt), 'h:mm a')}
-                    </p>
+            return (
+              <Card key={trip.id}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="font-display text-lg font-normal">
+                        {trip.label}
+                      </CardTitle>
+                      <p className="mt-1 text-xs text-ink-muted">
+                        Covers {listNames.join(' + ')} — due{' '}
+                        {format(parseISO(trip.dueAt), 'h:mm a')}
+                      </p>
+                    </div>
+                    {!feasible && (
+                      <Badge variant="outline" className="border-flag text-flag">
+                        Not feasible
+                      </Badge>
+                    )}
                   </div>
-                  {!feasible && (
-                    <Badge variant="outline" className="border-flag text-flag">
-                      Not feasible
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="rounded bg-surface-2 p-4">
-                  <p className="text-xs tracking-wide text-ink-muted uppercase">Leave by</p>
-                  <p className="font-mono text-2xl text-ink">{format(leaveBy, 'h:mm a')}</p>
-                </div>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="rounded bg-surface-2 p-4">
+                    <p className="text-xs tracking-wide text-ink-muted uppercase">Leave by</p>
+                    <p className="font-mono text-2xl text-ink">{format(leaveBy, 'h:mm a')}</p>
+                  </div>
 
-                <ul className="flex flex-col divide-y divide-rule border-y border-rule">
-                  {stops.map(({ stop, arrival, infeasibleReason }) => (
-                    <li key={stop.id} className="flex items-center justify-between py-3">
-                      <div>
-                        <p className="text-sm text-ink">{stop.storeName}</p>
-                        <p className="font-mono text-xs text-ink-muted">
-                          {stop.listNames.join(', ')} · open {stop.opensAt}–{stop.closesAt}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={`font-mono text-sm ${infeasibleReason ? 'text-flag' : 'text-ink'}`}
-                        >
-                          Arrive {format(arrival, 'h:mm a')}
-                        </p>
-                        {infeasibleReason && (
-                          <p className="font-mono text-xs text-flag">{infeasibleReason}</p>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                  <ul className="flex flex-col divide-y divide-rule border-y border-rule">
+                    {stops.map(({ stop, arrival, infeasibleReason }) => (
+                      <li key={stop.id} className="flex items-center justify-between py-3">
+                        <div>
+                          <p className="text-sm text-ink">{stop.storeName}</p>
+                          <p className="font-mono text-xs text-ink-muted">
+                            {stop.listNames.join(', ')} · open {stop.opensAt}–{stop.closesAt}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p
+                            className={`font-mono text-sm ${infeasibleReason ? 'text-flag' : 'text-ink'}`}
+                          >
+                            Arrive {format(arrival, 'h:mm a')}
+                          </p>
+                          {infeasibleReason && (
+                            <p className="font-mono text-xs text-flag">{infeasibleReason}</p>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </main>
   );
 }
