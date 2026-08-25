@@ -115,7 +115,7 @@ it only front-loads what each of those screens looks like.
       the one item still open on 1b's own checklist
 - [x] 1c: connected-accounts screen — connect, list, disconnect, and a
       reconnect-needed state (mock data)
-- [ ] 1e: review queue screen — confirm / price-update / discovery /
+- [x] 1e: review queue screen — confirm / price-update / discovery /
       cancellation proposal cards, with `reasoning` shown on each (mock data)
 - [ ] Phase 2: insurance entry form and list, renewal reminder surfaced on the
       dashboard (mock data)
