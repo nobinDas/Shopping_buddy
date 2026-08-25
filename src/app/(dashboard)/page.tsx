@@ -6,6 +6,7 @@ import { createClient } from '@/server/providers/supabase';
 import { formatMoney } from '@/lib/money';
 import { formatDate } from '@/lib/dates';
 import { BurnRibbon, type RibbonBand } from '@/components/dashboard/BurnRibbon';
+import { RenewalReminder } from '@/components/insurance/RenewalReminder';
 import { signOut } from './actions';
 
 export default async function DashboardPage() {
@@ -85,6 +86,13 @@ export default async function DashboardPage() {
           </form>
         </div>
       </header>
+
+      <RenewalReminder
+        insurer="State Farm"
+        premiumMinor={84000}
+        currency="USD"
+        renewalDate="2026-11-20"
+      />
 
       {activeSubscriptions.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-rule bg-surface-2 p-12 text-center">
