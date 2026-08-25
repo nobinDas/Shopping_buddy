@@ -113,7 +113,7 @@ it only front-loads what each of those screens looks like.
 - [x] 1b: per-subscription detail screen with price history — real data, no
       backend work needed (schema and price_history writes already exist);
       the one item still open on 1b's own checklist
-- [ ] 1c: connected-accounts screen — connect, list, disconnect, and a
+- [x] 1c: connected-accounts screen — connect, list, disconnect, and a
       reconnect-needed state (mock data)
 - [ ] 1e: review queue screen — confirm / price-update / discovery /
       cancellation proposal cards, with `reasoning` shown on each (mock data)
