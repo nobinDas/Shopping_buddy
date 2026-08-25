@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Bricolage_Grotesque, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const displayFont = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -26,9 +27,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable}`}>
-        {children}
+    // Font variable classNames live on <html>, not <body>: shadcn's base
+    // layer applies `font-sans` at the <html> element (see globals.css),
+    // and a CSS custom property set via className only reaches descendants
+    // — putting it on <body> would leave <html> itself unable to resolve it.
+    <html lang="en" className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable}`}>
+      <body>
+        <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
   );

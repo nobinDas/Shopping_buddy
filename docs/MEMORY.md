@@ -18,7 +18,8 @@ session — a session that only answered questions changes nothing.
 ## Current state
 
 **Phase:** 1 — Subscription tracker MVP. Phase 0, 1a, and 1b all complete.
-Phase 1.5 (frontend design pass) is next, inserted before 1c — see ADR-007.
+Phase 1.5 (frontend design pass, ADR-007) in progress: shadcn/ui and the
+burn ribbon are done; six mock-data screens remain.
 **Last updated:** 2026-08-25
 
 ### Done
@@ -79,17 +80,50 @@ Phase 1b — complete:
   `db/queries/subscriptions.ts` (ordered by `effectiveFrom` ascending) and
   linked subscription names on the list page to this screen
 
+Phase 1.5 — in progress (see ADR-007), two of nine items done:
+
+- shadcn/ui installed (`--base radix`, `--preset nova`; `-d`'s actual
+  default pulled in Base UI and a stray Geist font — both removed) and every
+  semantic token in `globals.css` remapped onto the existing `DESIGN.md`
+  palette rather than shadcn's own grayscale, with no dark theme (DESIGN.md
+  specifies one light surface, not a toggle). Fixed a circular
+  `--font-sans: var(--font-sans)` shadcn's init introduced, and moved the
+  font-variable classNames from `<body>` to `<html>` so shadcn's
+  `html { @apply font-sans }` base rule can actually resolve them. Installed
+  card/badge/separator/table/alert/skeleton/tabs/dialog/dropdown-menu/
+  tooltip; fixed a real `exactOptionalPropertyTypes` type error in the
+  generated `dropdown-menu.tsx`. `TooltipProvider` wraps the root layout.
+  Ran `pnpm format` across the whole repo while here — formatting had
+  drifted on files `pnpm verify` doesn't check
+- Burn ribbon (`components/dashboard/BurnRibbon.tsx`), wired into the real
+  dashboard, real data: one band per billing *occurrence* in the next twelve
+  months (not one per subscription — a monthly sub bills up to twelve times
+  in the window), positioned on a continuous day-resolution timeline, height
+  scaled by amount, same-day occurrences offset side by side so clustering
+  stays visible rather than fully overlapping. Radix Tooltip shows the same
+  detail on hover and keyboard focus (verified live: tab-focusing a band
+  shows its tooltip exactly like hovering it does). Below 768px the whole
+  chart transposes to a vertical timeline (months top-to-bottom, amount as
+  bar length) rather than horizontally scrolling — verified live at 390px.
+  New domain function `occurrencesInWindow` in `billing-cycle.ts` (8 tests)
+  makes this possible: unlike `computeNextBillingDate`, it returns every
+  occurrence in a date range, not just the next one
+
 Verification:
 
-- `pnpm verify` green: typecheck, lint, 85 unit tests, 11 integration tests
+- `pnpm verify` green: typecheck, lint, 93 unit tests, 11 integration tests
 - Manually exercised in a real browser against the real Supabase Postgres
-  across two sessions: create → dashboard burn updates correctly → edit
+  across three sessions: create → dashboard burn updates correctly → edit
   price → confirmed the `price_history` row directly in Postgres → archive
-  → dashboard falls back to empty state; and separately, the detail page's
-  price-history delta rendering with a real two-entry history. Test rows
-  cleaned up afterward each time
+  → dashboard falls back to empty state; the detail page's price-history
+  delta rendering with a real two-entry history; and the burn ribbon with
+  six varied real subscriptions (monthly/quarterly/annual, a same-week
+  cluster of two annual renewals) at both desktop and 390px mobile widths,
+  including keyboard-focus tooltip parity. Test rows cleaned up afterward
+  each time
 - Committed and pushed to `origin/main` through `c438381`; this session's
-  detail-page work not yet committed. Per explicit user request, recent
+  detail-page and Phase 1.5 work not yet committed. Per explicit user
+  request, recent
   commits omit the `Co-Authored-By: Claude` trailer
 
 ### In progress
@@ -98,12 +132,11 @@ Nothing mid-task.
 
 ### Next
 
-Phase 1.5 — frontend design pass (see ADR-007): every remaining screen in
-the product, across every remaining phase, built against mock data before
-any further real backend work. 1b's real-data item is now done, so this
-starts with shadcn/ui installation and the burn ribbon, then the mock-data
-screens for 1c, 1e, and Phases 2–5. Only after that does 1c's real OAuth
-work begin. See `PHASES.md`.
+Phase 1.5, continued: mock-data screens for 1c (connected accounts), 1e
+(review queue), and Phases 2–5 (insurance, shopping lists, route planner,
+price timing), then empty/loading/error states across all of them, then a
+DESIGN.md quality-floor pass (375px, focus, reduced-motion, contrast). Only
+after all of that does 1c's real OAuth work begin. See `PHASES.md`.
 
 ### Blocked
 
@@ -159,6 +192,33 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-08-25 — Phase 1.5 started: shadcn/ui and the burn ribbon
+**Did:** Installed shadcn/ui (`radix` base, `nova` preset) and remapped every
+generated semantic token onto the existing `DESIGN.md` palette instead of
+shadcn's own — see the Phase 1.5 section under Current State above for the
+full list of what that involved (a circular font-var bug, a
+`<body>`→`<html>` font-scoping fix, an unused `@base-ui/react` dep, a real
+`exactOptionalPropertyTypes` type error in generated `dropdown-menu.tsx`).
+Built the burn ribbon (`components/dashboard/BurnRibbon.tsx`) on the real
+dashboard against real subscription data — a continuous day-resolution
+timeline, one band per billing occurrence (not per subscription), height
+scaled by amount, same-day occurrences offset instead of overlapping, a
+Radix Tooltip with hover/focus parity, and a transposed vertical layout
+below 768px per `DESIGN.md`. Added `occurrencesInWindow` to
+`billing-cycle.ts` to make the "every occurrence in a window" query
+possible. `pnpm verify` green (93 unit, 11 integration). Manually verified
+live with six varied real subscriptions at both desktop and 390px mobile
+widths, including a real keyboard-focus tooltip check. Checked off both
+items in `PHASES.md`. Ran `pnpm format` across the whole repo — formatting
+had drifted on files outside `pnpm verify`'s scope.
+**Decided:** No dark mode — shadcn's init scaffolds one by default, but
+`DESIGN.md` specifies a single light "paper" surface, not a toggle, so the
+`.dark` block was removed rather than left unused.
+**Next:** Phase 1.5, continued — mock-data screens for 1c (connected
+accounts) and 1e (review queue) next, then Phases 2–5.
 
 ---
 

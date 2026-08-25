@@ -54,7 +54,10 @@ export default async function SubscriptionDetailPage({ params }: SubscriptionDet
         <div className="rounded border border-rule bg-surface-2 p-6">
           <p className="text-xs tracking-wide text-ink-muted uppercase">Current price</p>
           <p className="mt-2 font-mono text-2xl text-ink">
-            {formatMoney({ amountMinor: subscription.amountMinor, currency: subscription.currency })}
+            {formatMoney({
+              amountMinor: subscription.amountMinor,
+              currency: subscription.currency,
+            })}
           </p>
         </div>
         <div className="rounded border border-rule bg-surface-2 p-6">
@@ -103,14 +106,20 @@ export default async function SubscriptionDetailPage({ params }: SubscriptionDet
                           </span>{' '}
                           to{' '}
                           <span className="font-mono">
-                            {formatMoney({ amountMinor: entry.amountMinor, currency: entry.currency })}
+                            {formatMoney({
+                              amountMinor: entry.amountMinor,
+                              currency: entry.currency,
+                            })}
                           </span>
                         </>
                       ) : (
                         <>
                           Changed to{' '}
                           <span className="font-mono">
-                            {formatMoney({ amountMinor: entry.amountMinor, currency: entry.currency })}
+                            {formatMoney({
+                              amountMinor: entry.amountMinor,
+                              currency: entry.currency,
+                            })}
                           </span>
                         </>
                       )}

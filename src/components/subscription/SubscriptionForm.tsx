@@ -113,7 +113,11 @@ export function SubscriptionForm({ action, submitLabel, initialValues }: Subscri
 
       <label className="flex flex-col gap-1">
         <span className={labelClass}>Category</span>
-        <select name="category" defaultValue={initialValues?.category ?? 'software'} className={fieldClass}>
+        <select
+          name="category"
+          defaultValue={initialValues?.category ?? 'software'}
+          className={fieldClass}
+        >
           {categoryValues.map((value) => (
             <option key={value} value={value}>
               {value}

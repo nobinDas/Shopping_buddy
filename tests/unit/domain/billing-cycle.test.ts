@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeNextBillingDate } from '@/server/domain/billing-cycle';
+import { computeNextBillingDate, occurrencesInWindow } from '@/server/domain/billing-cycle';
 
 describe('computeNextBillingDate', () => {
   it('returns the anchor date unchanged when it is still in the future', () => {
@@ -242,5 +242,98 @@ describe('computeNextBillingDate', () => {
 
       expect(result).toBe('2026-07-01');
     });
+  });
+});
+
+describe('occurrencesInWindow', () => {
+  it('returns every monthly occurrence within a year-long window', () => {
+    const result = occurrencesInWindow({
+      anchorDate: '2026-01-15',
+      cycle: 'monthly',
+      windowStart: '2026-01-01',
+      windowEnd: '2026-12-31',
+    });
+
+    expect(result).toHaveLength(12);
+    expect(result[0]).toBe('2026-01-15');
+    expect(result[11]).toBe('2026-12-15');
+  });
+
+  it('includes the anchor date itself when it falls inside the window', () => {
+    const result = occurrencesInWindow({
+      anchorDate: '2026-03-01',
+      cycle: 'annual',
+      windowStart: '2026-01-01',
+      windowEnd: '2026-12-31',
+    });
+
+    expect(result).toEqual(['2026-03-01']);
+  });
+
+  it('excludes the anchor date when it falls before the window', () => {
+    const result = occurrencesInWindow({
+      anchorDate: '2020-03-01',
+      cycle: 'annual',
+      windowStart: '2026-01-01',
+      windowEnd: '2026-12-31',
+    });
+
+    expect(result).toEqual(['2026-03-01']);
+  });
+
+  it('returns an empty array when no occurrence falls in the window', () => {
+    const result = occurrencesInWindow({
+      anchorDate: '2026-06-01',
+      cycle: 'annual',
+      windowStart: '2026-01-01',
+      windowEnd: '2026-05-31',
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns an empty array when the anchor is entirely after the window', () => {
+    const result = occurrencesInWindow({
+      anchorDate: '2030-01-01',
+      cycle: 'monthly',
+      windowStart: '2026-01-01',
+      windowEnd: '2026-12-31',
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it('respects both window bounds as inclusive', () => {
+    const result = occurrencesInWindow({
+      anchorDate: '2026-01-01',
+      cycle: 'monthly',
+      windowStart: '2026-01-01',
+      windowEnd: '2026-01-01',
+    });
+
+    expect(result).toEqual(['2026-01-01']);
+  });
+
+  it('handles a custom interval', () => {
+    const result = occurrencesInWindow({
+      anchorDate: '2026-01-01',
+      cycle: 'custom',
+      cycleDays: 45,
+      windowStart: '2026-01-01',
+      windowEnd: '2026-06-30',
+    });
+
+    expect(result).toEqual(['2026-01-01', '2026-02-15', '2026-04-01', '2026-05-16', '2026-06-30']);
+  });
+
+  it('throws when cycleDays is missing for a custom cycle', () => {
+    expect(() =>
+      occurrencesInWindow({
+        anchorDate: '2026-01-01',
+        cycle: 'custom',
+        windowStart: '2026-01-01',
+        windowEnd: '2026-12-31',
+      }),
+    ).toThrow("cycleDays must be a positive integer when cycle is 'custom'");
   });
 });

@@ -1,10 +1,11 @@
-import { format } from 'date-fns';
+import { addMonths, format } from 'date-fns';
 import { calculateMonthlyBurn, type BurnSubscription } from '@/server/domain/burn';
-import { computeNextBillingDate } from '@/server/domain/billing-cycle';
+import { computeNextBillingDate, occurrencesInWindow } from '@/server/domain/billing-cycle';
 import { getActiveSubscriptions } from '@/server/db/queries/subscriptions';
 import { createClient } from '@/server/providers/supabase';
 import { formatMoney } from '@/lib/money';
 import { formatDate } from '@/lib/dates';
+import { BurnRibbon, type RibbonBand } from '@/components/dashboard/BurnRibbon';
 import { signOut } from './actions';
 
 export default async function DashboardPage() {
@@ -49,6 +50,28 @@ export default async function DashboardPage() {
   // conversion does in burn.ts.
   const annualizedBurn = monthlyBurn.map((m) => ({ ...m, amountMinor: m.amountMinor * 12 }));
 
+  // Burn ribbon: one band per billing occurrence in the next twelve months,
+  // not one per subscription — a monthly subscription bills up to twelve
+  // times in this window and each occurrence gets its own mark, which is
+  // what makes clustering visible. See docs/DESIGN.md.
+  const windowEnd = format(addMonths(new Date(), 12), 'yyyy-MM-dd');
+  const ribbonBands: RibbonBand[] = activeSubscriptions.flatMap((sub) =>
+    occurrencesInWindow({
+      anchorDate: sub.anchorDate,
+      cycle: sub.cycle,
+      cycleDays: sub.cycleDays,
+      windowStart: today,
+      windowEnd,
+    }).map((date) => ({
+      id: `${sub.id}-${date}`,
+      subscriptionId: sub.id,
+      name: sub.name,
+      amountMinor: sub.amountMinor,
+      currency: sub.currency,
+      date,
+    })),
+  );
+
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-10 p-8">
       <header className="flex items-center justify-between">
@@ -71,6 +94,10 @@ export default async function DashboardPage() {
         </div>
       ) : (
         <>
+          <section>
+            <BurnRibbon bands={ribbonBands} windowStart={today} windowEnd={windowEnd} />
+          </section>
+
           <section className="grid grid-cols-2 gap-6">
             <div className="rounded border border-rule bg-surface-2 p-6">
               <p className="text-xs tracking-wide text-ink-muted uppercase">Monthly burn</p>

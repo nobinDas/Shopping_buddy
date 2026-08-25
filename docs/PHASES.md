@@ -103,10 +103,10 @@ of the harder backend work begins. It does not change the order real data
 gets wired in — that still happens phase by phase, exactly as scoped below —
 it only front-loads what each of those screens looks like.
 
-- [ ] shadcn/ui installed and wired to the `DESIGN.md` tokens (`components/ui/`
+- [x] shadcn/ui installed and wired to the `DESIGN.md` tokens (`components/ui/`
       is currently empty; `DESIGN.md` already specifies shadcn as the
       functional-component layer, and nothing built so far uses it)
-- [ ] Burn ribbon — the signature dashboard element from `DESIGN.md` (twelve
+- [x] Burn ribbon — the signature dashboard element from `DESIGN.md` (twelve
       months, every recurring commitment as a band positioned by billing date
       and scaled by amount), including its vertical-below-768px responsive
       behaviour

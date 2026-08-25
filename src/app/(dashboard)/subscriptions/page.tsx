@@ -37,7 +37,10 @@ export default async function SubscriptionsPage() {
                 <p className="font-mono text-sm text-ink">
                   {formatMoney({ amountMinor: sub.amountMinor, currency: sub.currency })}
                 </p>
-                <Link href={`/subscriptions/${sub.id}/edit`} className="font-mono text-sm underline">
+                <Link
+                  href={`/subscriptions/${sub.id}/edit`}
+                  className="font-mono text-sm underline"
+                >
                   Edit
                 </Link>
                 {sub.status !== 'archived' && (

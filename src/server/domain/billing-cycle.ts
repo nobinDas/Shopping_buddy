@@ -87,6 +87,56 @@ function occurrence(
   return addMonths(anchorDate, n * CYCLE_MONTHS[cycle]);
 }
 
+export interface OccurrencesInWindowInput {
+  anchorDate: IsoDateString;
+  cycle: BillingCycle;
+  /** Required, and only meaningful, when cycle === 'custom'. */
+  cycleDays?: number | null;
+  /** Both bounds inclusive. */
+  windowStart: IsoDateString;
+  windowEnd: IsoDateString;
+}
+
+/**
+ * Returns every billing occurrence between `windowStart` and `windowEnd`
+ * (inclusive), on the schedule anchored at `anchorDate`. Unlike
+ * `computeNextBillingDate`, which returns a single date, this returns every
+ * date in range — the dashboard's burn ribbon needs one band per
+ * occurrence, and a monthly subscription occurs many times within a
+ * year-long window.
+ */
+export function occurrencesInWindow({
+  anchorDate,
+  cycle,
+  cycleDays,
+  windowStart,
+  windowEnd,
+}: OccurrencesInWindowInput): IsoDateString[] {
+  assertValidCycleDays(cycle, cycleDays);
+
+  const anchor = parseISO(anchorDate);
+  const start = parseISO(windowStart);
+  const end = parseISO(windowEnd);
+
+  const results: IsoDateString[] = [];
+
+  if (compareAsc(anchor, start) >= 0 && compareAsc(anchor, end) <= 0) {
+    results.push(format(anchor, 'yyyy-MM-dd'));
+  }
+
+  for (let n = 1; n <= MAX_ITERATIONS; n++) {
+    const candidate = occurrence(anchor, cycle, cycleDays, n);
+    if (compareAsc(candidate, end) > 0) {
+      break;
+    }
+    if (compareAsc(candidate, start) >= 0) {
+      results.push(format(candidate, 'yyyy-MM-dd'));
+    }
+  }
+
+  return results;
+}
+
 /**
  * Returns the next billing date on the recurring schedule anchored at
  * `anchorDate`, on or after `asOf`.

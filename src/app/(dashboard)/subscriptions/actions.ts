@@ -28,7 +28,9 @@ function getFormString(formData: FormData, key: string): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function parseSubscriptionForm(formData: FormData): ReturnType<typeof subscriptionInputSchema.safeParse> {
+function parseSubscriptionForm(
+  formData: FormData,
+): ReturnType<typeof subscriptionInputSchema.safeParse> {
   const amountMinor = parseAmountToMinorUnits(getFormString(formData, 'amountMinor') ?? '');
   const cycleDaysRaw = getFormString(formData, 'cycleDays');
   const notesRaw = getFormString(formData, 'notes');
