@@ -123,7 +123,7 @@ it only front-loads what each of those screens looks like.
       store price per item, list total (mock data)
 - [x] Phase 4: route/deadline planner — trip view, leave-by time, consolidated-
       trip view (mock data)
-- [ ] Phase 5: price timing — price history chart, buy-now-or-wait card,
+- [x] Phase 5: price timing — price history chart, buy-now-or-wait card,
       price-drop watchlist (mock data)
 - [ ] Empty, loading, and error states designed for every screen above, not
       only the dashboard's
