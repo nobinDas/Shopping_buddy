@@ -19,7 +19,7 @@ session — a session that only answered questions changes nothing.
 
 **Phase:** 1 — Subscription tracker MVP. Phase 0, 1a, 1b, and now **1.5 are
 all complete**. Phase 1c (real Google/Microsoft OAuth) is next.
-**Last updated:** 2026-08-25
+**Last updated:** 2026-09-01
 
 ### Done
 
@@ -276,6 +276,24 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-01 — RLS enabled on every public table
+**Did:** Supabase's security advisor flagged `phase0_healthcheck` for missing
+RLS. Checking the rest of the schema found `subscriptions` and
+`price_history` — both holding real data — had the same gap, which
+`SECURITY.md`'s own checklist had already called out as required. Added
+`.enableRLS()` to all three tables in `schema.ts`, generated and applied
+migration `0002_fluffy_ozymandias.sql`. `pnpm verify` stays green afterward,
+confirming the server's direct `DATABASE_URL` connection (which owns the
+tables) is unaffected while the PostgREST anon/authenticated API is now
+deny-all.
+**Decided:** RLS enabled with zero policies rather than per-row ownership
+policies, since the app has no owner column by design and never queries
+these tables through PostgREST/anon key — see ADR-008 in `DECISIONS.md`.
+**Next:** Phase 1c: real Google OAuth, then Microsoft OAuth (unchanged from
+before this session).
 
 ---
 

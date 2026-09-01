@@ -15,6 +15,13 @@
       "when": 1786467667347,
       "tag": "0001_glorious_stephen_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788294065581,
+      "tag": "0002_fluffy_ozymandias",
+      "breakpoints": true
     }
   ]
 }

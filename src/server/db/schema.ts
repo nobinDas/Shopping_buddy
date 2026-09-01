@@ -18,7 +18,7 @@ import {
 export const phase0Healthcheck = pgTable('phase0_healthcheck', {
   id: uuid('id').primaryKey().defaultRandom(),
   checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 // ── Enums ──────────────────────────────────────────────────────────────
 
@@ -96,7 +96,7 @@ export const subscriptions = pgTable(
     index('subscriptions_status_idx').on(table.status),
     index('subscriptions_next_billing_date_idx').on(table.nextBillingDate),
   ],
-);
+).enableRLS();
 
 // ── price_history ──────────────────────────────────────────────────────
 // Append-only by convention: a subscription's price is never edited in
@@ -127,4 +127,4 @@ export const priceHistory = pgTable(
     index('price_history_subscription_id_idx').on(table.subscriptionId),
     index('price_history_effective_from_idx').on(table.effectiveFrom),
   ],
-);
+).enableRLS();
