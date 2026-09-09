@@ -27,6 +27,61 @@ not actually examined.
 
 ---
 
+## ADR-009 — Mobile-first redesign, persistent bottom-nav shell, "More" IA
+
+**Date:** 2026-09-09
+**Status:** accepted
+**Context:** The user designed the full app UI/UX in Claude Design
+(`Overhead Mobile.dc.html`) as a 390×844 mobile shell — a persistent
+5-tab bottom nav (Dashboard, Subscriptions, Review, Shopping, More) with
+everything else (Accounts, Preferred stores, Insurance, Trips, Watchlist)
+folded behind "More" — and asked for it to be implemented, with all
+future UI/UX work targeting mobile-first from here on. Confirmed with the
+user this stays the same Next.js web app (not a PWA wrapper, not a native
+rewrite): a mobile-first responsive redesign costs nothing if the app is
+later wrapped for app-store distribution (Capacitor-style), and doesn't
+add work even in a hypothetical future native rewrite, since the domain
+layer (`src/server/domain/`) is plain TypeScript with no DOM dependency
+either way — only the UI layer was ever going to be rebuilt for React
+Native.
+**Decision:** Added `src/app/(dashboard)/layout.tsx` + `BottomNav.tsx` as
+a persistent shell wrapping every screen under `(dashboard)/`. Every
+existing screen restyled to the mobile design's density (flat blocks, no
+rounded corners on primary actions, mono-uppercase micro-labels) while
+keeping its existing data source unchanged — real screens (dashboard,
+subscriptions) still query Postgres, mock screens (accounts, review,
+insurance, shopping, trips, watchlist) still use local fixture state, only
+presentation changed. Added two new screens: `/more` (the nav hub) and
+`/stores` ("Preferred stores" — fits Phase 3's already-scoped "optional
+store preference," not new product scope). The dashboard's burn ribbon
+(hover-tooltip occurrence bands) was replaced with a tap-a-month bar chart
++ drill-down list, backed by a new pure `groupOccurrencesByMonth` in
+`src/server/domain/burn.ts` (unit tested) — the design's own interaction
+model, not an independent choice.
+**Consequences:** The old `BurnRibbon.tsx` component and its
+hover-tooltip interaction are gone — anyone wanting that exact desktop
+ribbon back would need to rebuild it; the new `BurnMonths.tsx` replaces
+it entirely rather than living alongside it. `subscription.service.ts`
+has no "restore/unarchive" function, so the archived-subscription detail
+view shows a static "Archived" label rather than the mock's Restore
+button — implementing real unarchive was out of this pass's UI-only
+scope and is now a visible gap between the design and the build. The
+mock's per-occurrence "this is the exact month a price change lands"
+row-highlighting was dropped for real dashboard data: the app has no
+concept of a scheduled *future* price change (only historical
+`price_history`), so fabricating that highlight would mean inventing a
+signal the data doesn't support — every dashboard drill-down row renders
+in plain ink instead.
+**Alternatives considered:** Keeping the old flat, nav-less routing and
+just restyling colors/spacing — rejected because the design's own state
+machine (`goTab`, `hasBack`/`backLabel`) is explicit about a persistent
+tab shell and a More-section hierarchy; a restyle without the navigation
+change wouldn't match what was actually designed. Building real unarchive
+now to make the detail screen match the mock exactly — rejected as
+backend work outside this pass's explicit "UI/UX only" scope.
+
+---
+
 ## ADR-008 — RLS enabled with zero policies, not per-row ownership policies
 
 **Date:** 2026-09-01

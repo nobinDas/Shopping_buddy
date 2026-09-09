@@ -17,9 +17,12 @@ session — a session that only answered questions changes nothing.
 
 ## Current state
 
-**Phase:** 1 — Subscription tracker MVP. Phase 0, 1a, 1b, and now **1.5 are
-all complete**. Phase 1c (real Google/Microsoft OAuth) is next.
-**Last updated:** 2026-09-01
+**Phase:** 1 — Subscription tracker MVP. Phase 0, 1a, 1b, and 1.5 are all
+complete. Phase 1c (real Google/Microsoft OAuth) is next. A mobile-first
+UI/UX redesign (ADR-009) just landed across every existing screen —
+UI/UX only, no backend/schema changes, so phase completion status is
+unaffected.
+**Last updated:** 2026-09-09
 
 ### Done
 
@@ -209,18 +212,58 @@ Verification:
   user request, commits in this repo omit the `Co-Authored-By: Claude`
   trailer
 
+Mobile-first redesign (2026-09-09, ADR-009) — every existing screen
+restyled to match a user-authored Claude Design mock (`Overhead Mobile`),
+UI/UX only:
+
+- New persistent shell: `app/(dashboard)/layout.tsx` +
+  `components/dashboard/BottomNav.tsx`, a 5-tab bottom nav (Dashboard,
+  Subscriptions, Review, Shopping, More) replacing the previous nav-less
+  flat routing
+- New `/more` screen (nav hub for Accounts/Preferred stores/Insurance/
+  Trips/Watchlist/Sign out) and new `/stores` ("Preferred stores" —
+  mock data, fits Phase 3's already-scoped store-preference concept)
+- Dashboard: `domain/burn.ts` gained `groupOccurrencesByMonth` (unit
+  tested), backing a new `components/dashboard/BurnMonths.tsx` — a
+  tap-a-month bar chart with a drill-down occurrence list, replacing
+  `BurnRibbon.tsx` (deleted) and its hover-tooltip interaction, which has
+  no touch equivalent
+- Subscriptions list/detail/form restyled; Archive moved from the list
+  row to the detail screen; `SubscriptionForm` now uses shadcn
+  Input/Label/Textarea/Select (previously raw elements) and a segmented
+  cycle control instead of a `<select>`
+- Review, Shopping, Accounts, Insurance, Trips, Watchlist all restyled to
+  the mobile density (flat blocks/checklist rows instead of shadcn
+  Table/Card in most cases) — same mock fixture data and logic throughout,
+  Shopping and Trips gained real (client-state, not persisted) checkbox
+  interactions the mock specified
+- Login restyled to match; same `requestMagicLink` action
+- Verified live in a real browser end to end: created and archived a real
+  subscription against real Postgres, exercised the tap-a-month chart,
+  the shopping checklist/store-editor, the trips stop-expand checklist,
+  and sign-out → login redirect; test data cleaned up from Postgres
+  afterward. `pnpm verify` green throughout (typecheck, lint, 101 unit —
+  93 + 8 new for `groupOccurrencesByMonth` — 11 integration)
+- See ADR-009 in `DECISIONS.md` for two real gaps this pass surfaced but
+  didn't fix, deliberately out of UI-only scope: no unarchive/restore
+  action exists in `subscription.service.ts` (the mock's Restore button
+  has no backend to call), and the mock's per-occurrence "price changes
+  here" row highlight was dropped for real data — the app has no concept
+  of a scheduled future price change to highlight
+
 ### In progress
 
-Nothing mid-task. **Phase 1.5 is complete — all 9 checklist items and its
-exit criteria met.**
+Nothing mid-task. Phase 1.5 remains complete; the mobile-first redesign
+above is UI/UX only and doesn't change any phase's completion status.
 
 ### Next
 
 Phase 1c: real Google OAuth (read-only scope), then Microsoft OAuth,
 refresh-token storage encrypted at rest, and incremental sync with a
-per-account cursor. The accounts screen already exists (Phase 1.5, mock
-data) — this phase replaces its mock state with real queries against a new
-`email_accounts` table, not a new UI. See `PHASES.md`.
+per-account cursor. The accounts screen already exists (now restyled
+mobile-first, still mock data) — this phase replaces its mock state with
+real queries against a new `email_accounts` table, not a new UI. See
+`PHASES.md`.
 
 ### Blocked
 
@@ -248,6 +291,10 @@ its rationale and deleting it here.
   diverge for annual renewals near month boundaries.
 - Sync frequency: daily is the assumption. Is it enough to catch a trial
   conversion before it bills?
+- Restore/unarchive: `subscription.service.ts` only archives, one-way. The
+  mobile design's detail screen has a Restore action with nothing to call.
+  Worth a small real fix whenever Phase 1a-adjacent work is next touched,
+  or deliberately deferred with a reason recorded here if not.
 
 ---
 
@@ -276,6 +323,41 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-09 — Mobile-first redesign implemented from a user-authored Claude Design mock
+**Did:** Imported and implemented `Overhead Mobile.dc.html` (a mobile UI/UX
+mock the user built in Claude Design) via the `DesignSync` MCP tool —
+`/design-login` authorized access, then `get_project`/`list_files`/
+`get_file` pulled the design's markup and token values, which matched
+`globals.css` exactly (no palette change needed). Built a persistent
+bottom-nav shell (`(dashboard)/layout.tsx`, `BottomNav.tsx`), restyled
+every existing screen to match, added `/more` and `/stores` (new,
+mock data), replaced the burn ribbon with a tap-a-month chart backed by
+a new tested `groupOccurrencesByMonth` in `domain/burn.ts`, and deleted
+the now-unused `BurnRibbon.tsx`. UI/UX only, per explicit user scoping —
+no schema or backend changes; every mock screen kept its existing mock
+data, every real screen (dashboard, subscriptions) kept its existing
+Postgres queries. Full detail in the Current State section above.
+Verified live in a real browser: created a real subscription, exercised
+every screen's core interaction, cleaned up the test row from Postgres
+afterward. `pnpm verify` green (101 unit incl. 8 new, 11 integration).
+Not yet committed.
+**Decided:** Recorded as ADR-009 in `DECISIONS.md` — mobile-first is now
+the standing design direction for all future UI/UX work, not a one-off
+redesign; the "More" IA and persistent tab shell came directly from the
+design's own state machine, not an independent choice. Two real gaps the
+pass surfaced were deliberately left unfixed as out of UI-only scope: no
+unarchive/restore action exists on the backend (mock detail screen shows
+a static "Archived" label instead of a Restore button), and the mock's
+per-occurrence price-change highlight was dropped from the real dashboard
+since the app has no concept of a scheduled future price change to
+highlight against.
+**Next:** Phase 1c — real Google/Microsoft OAuth (unchanged from before
+this session). Separately, consider a small pass to add real unarchive to
+`subscription.service.ts` so the detail screen's Restore action has
+something to call.
 
 ---
 

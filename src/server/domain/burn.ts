@@ -1,5 +1,6 @@
+import { addMonths, format, parseISO, startOfMonth } from 'date-fns';
 import { addMoney, type Money } from '@/lib/money';
-import type { BillingCycle } from './billing-cycle';
+import type { BillingCycle, IsoDateString } from './billing-cycle';
 
 /**
  * The subset of a subscription's fields the burn calculation actually
@@ -80,4 +81,73 @@ export function calculateMonthlyBurn(subscriptions: BurnSubscription[]): Money[]
   }
 
   return [...totals.values()];
+}
+
+/**
+ * One billing occurrence — a subscription's charge landing on a specific
+ * date, not the subscription itself. A monthly subscription contributes
+ * many of these across a year-long window (see `occurrencesInWindow` in
+ * `billing-cycle.ts`, which is what callers use to build this list).
+ */
+export interface BurnOccurrence {
+  id: string;
+  subscriptionId: string;
+  name: string;
+  amountMinor: number;
+  currency: string;
+  date: IsoDateString;
+}
+
+export interface MonthlyBurnBucket {
+  /** First day of the month, ISO 'yyyy-MM-dd'. */
+  monthStart: IsoDateString;
+  /** One entry per distinct currency present in this month's occurrences. */
+  totals: Money[];
+  /** Sorted by date ascending. */
+  occurrences: BurnOccurrence[];
+}
+
+/**
+ * Buckets billing occurrences into consecutive calendar months starting
+ * from the month containing `windowStart`, for the mobile dashboard's
+ * tap-a-month drill-down (see docs/DESIGN.md). Each bucket's total is
+ * bucketed by currency with the same never-mix-currencies rule
+ * `calculateMonthlyBurn` follows — `addMoney` throws rather than blend.
+ *
+ * Pure and synchronous: no I/O, deterministic for a given `windowStart`.
+ */
+export function groupOccurrencesByMonth(
+  occurrences: BurnOccurrence[],
+  windowStart: IsoDateString,
+  monthCount = 12,
+): MonthlyBurnBucket[] {
+  const firstMonthStart = startOfMonth(parseISO(windowStart));
+
+  const buckets: MonthlyBurnBucket[] = [];
+  for (let i = 0; i < monthCount; i++) {
+    const bucketStart = addMonths(firstMonthStart, i);
+    const bucketEnd = addMonths(firstMonthStart, i + 1);
+
+    const inBucket = occurrences
+      .filter((occ) => {
+        const date = parseISO(occ.date);
+        return date >= bucketStart && date < bucketEnd;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const totals = new Map<string, Money>();
+    for (const occ of inBucket) {
+      const running = totals.get(occ.currency);
+      const amount: Money = { amountMinor: occ.amountMinor, currency: occ.currency };
+      totals.set(occ.currency, running ? addMoney(running, amount) : amount);
+    }
+
+    buckets.push({
+      monthStart: format(bucketStart, 'yyyy-MM-dd'),
+      totals: [...totals.values()],
+      occurrences: inBucket,
+    });
+  }
+
+  return buckets;
 }

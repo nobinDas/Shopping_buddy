@@ -1,8 +1,5 @@
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { formatMoney } from '@/lib/money';
-import { formatDate } from '@/lib/dates';
 
 /**
  * Phase 1.5 mock data — no price-history accumulation or trend detection
@@ -20,9 +17,9 @@ interface MockWatchItem {
   id: string;
   name: string;
   currency: string;
-  targetPriceMinor: number;
+  targetPriceMinor: number | null;
   history: MockPricePoint[];
-  suggestion: 'buy' | 'wait';
+  suggestion: 'buy' | 'wait' | 'no_price';
   reasoning: string;
 }
 
@@ -77,19 +74,30 @@ const watchItems: MockWatchItem[] = [
     suggestion: 'buy',
     reasoning: 'Currently $400 — exactly at your target, and has held steady there for two months.',
   },
+  {
+    id: '4',
+    name: 'Winter tyres, set of 4',
+    currency: 'USD',
+    targetPriceMinor: null,
+    history: [],
+    suggestion: 'no_price',
+    reasoning: 'Nothing observed yet — not zero. Recommendation waits for a first reading.',
+  },
 ];
 
 const suggestionLabel: Record<MockWatchItem['suggestion'], string> = {
   buy: 'Buy now',
   wait: 'Wait',
+  no_price: 'No price yet',
 };
 
 // See docs/DESIGN.md's three signal colours — neither maps exactly, but
 // verified (confirmed/good) and pending (holding for a better moment) are
 // the closer fits of the two available.
-const suggestionBadgeClass: Record<MockWatchItem['suggestion'], string> = {
-  buy: 'border-verified text-verified',
-  wait: 'border-pending text-pending',
+const suggestionToneClass: Record<MockWatchItem['suggestion'], string> = {
+  buy: 'text-verified',
+  wait: 'text-pending',
+  no_price: 'text-ink-muted',
 };
 
 /**
@@ -166,54 +174,45 @@ function PriceSparkline({ history, currency }: { history: MockPricePoint[]; curr
 
 export default function WatchlistPage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
-      <header>
-        <Link href="/" className="font-mono text-xs text-ink-muted underline">
-          ← Overhead
-        </Link>
-        <p className="mt-2 font-display text-2xl">Price watchlist</p>
-      </header>
+    <main className="flex min-h-screen flex-col px-5 pt-6">
+      <Link href="/more" className="font-mono text-xs text-ink-muted underline">
+        ← More
+      </Link>
+      <p className="mt-3 mb-2 font-display text-[28px] tracking-tight">Watchlist</p>
 
       {watchItems.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-rule bg-surface-2 p-12 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 border border-rule bg-surface-2 p-12 text-center">
           <p className="text-base text-ink">
             Nothing on your watchlist yet. Add an item with a target price to track.
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="border-t border-rule">
           {watchItems.map((item) => {
             const current = item.history[item.history.length - 1];
-            const lastUpdated = current ? formatDate(current.date) : '—';
 
             return (
-              <Card key={item.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="font-display text-lg font-normal">
-                        {item.name}
-                      </CardTitle>
-                      <p className="mt-1 font-mono text-xs text-ink-muted">
-                        Target{' '}
-                        {formatMoney({
-                          amountMinor: item.targetPriceMinor,
-                          currency: item.currency,
-                        })}
-                        {' · updated '}
-                        {lastUpdated}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className={suggestionBadgeClass[item.suggestion]}>
-                      {suggestionLabel[item.suggestion]}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
+              <div key={item.id} className="border-b border-rule py-4">
+                <div className="mb-1 flex items-baseline justify-between">
+                  <span className="font-sans text-[15px] font-medium text-ink">{item.name}</span>
+                  <span className="font-mono text-base text-ink">
+                    {current
+                      ? formatMoney({ amountMinor: current.amountMinor, currency: item.currency })
+                      : '—'}
+                  </span>
+                </div>
+                <p
+                  className={`mb-2.5 font-mono text-[10px] font-semibold tracking-widest ${suggestionToneClass[item.suggestion]}`}
+                >
+                  {suggestionLabel[item.suggestion].toUpperCase()}
+                </p>
+                {item.history.length > 0 ? (
                   <PriceSparkline history={item.history} currency={item.currency} />
-                  <p className="text-sm text-ink-muted">{item.reasoning}</p>
-                </CardContent>
-              </Card>
+                ) : (
+                  <div className="h-14 bg-surface-2" />
+                )}
+                <p className="mt-2 text-[13px] leading-relaxed text-ink-muted">{item.reasoning}</p>
+              </div>
             );
           })}
         </div>

@@ -1,11 +1,16 @@
 import { addMonths, format } from 'date-fns';
-import { calculateMonthlyBurn, type BurnSubscription } from '@/server/domain/burn';
+import {
+  calculateMonthlyBurn,
+  groupOccurrencesByMonth,
+  type BurnOccurrence,
+  type BurnSubscription,
+} from '@/server/domain/burn';
 import { computeNextBillingDate, occurrencesInWindow } from '@/server/domain/billing-cycle';
 import { getActiveSubscriptions } from '@/server/db/queries/subscriptions';
 import { createClient } from '@/server/providers/supabase';
 import { formatMoney } from '@/lib/money';
 import { formatDate } from '@/lib/dates';
-import { BurnRibbon, type RibbonBand } from '@/components/dashboard/BurnRibbon';
+import { BurnMonths } from '@/components/dashboard/BurnMonths';
 import { RenewalReminder } from '@/components/insurance/RenewalReminder';
 import { signOut } from './actions';
 
@@ -51,12 +56,12 @@ export default async function DashboardPage() {
   // conversion does in burn.ts.
   const annualizedBurn = monthlyBurn.map((m) => ({ ...m, amountMinor: m.amountMinor * 12 }));
 
-  // Burn ribbon: one band per billing occurrence in the next twelve months,
-  // not one per subscription — a monthly subscription bills up to twelve
-  // times in this window and each occurrence gets its own mark, which is
-  // what makes clustering visible. See docs/DESIGN.md.
+  // Monthly drill-down: one occurrence per billing event in the next twelve
+  // months, not one per subscription — a monthly subscription bills up to
+  // twelve times in this window. groupOccurrencesByMonth buckets these into
+  // the 12 calendar months the tap-a-month chart renders. See docs/DESIGN.md.
   const windowEnd = format(addMonths(new Date(), 12), 'yyyy-MM-dd');
-  const ribbonBands: RibbonBand[] = activeSubscriptions.flatMap((sub) =>
+  const occurrences: BurnOccurrence[] = activeSubscriptions.flatMap((sub) =>
     occurrencesInWindow({
       anchorDate: sub.anchorDate,
       cycle: sub.cycle,
@@ -72,66 +77,69 @@ export default async function DashboardPage() {
       date,
     })),
   );
+  const monthlyBuckets = groupOccurrencesByMonth(occurrences, today);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-10 p-8">
+    <main className="flex min-h-screen flex-col gap-5 px-5 pt-6">
       <header className="flex items-center justify-between">
-        <p className="font-display text-2xl">Overhead</p>
-        <div className="flex items-center gap-4">
-          <p className="font-mono text-sm text-ink-muted">{user?.email}</p>
+        <p className="font-display text-lg">Overhead</p>
+        <div className="flex items-center gap-3">
+          <p className="font-mono text-xs text-ink-muted">{user?.email}</p>
           <form action={signOut}>
-            <button type="submit" className="font-mono text-sm text-flag underline">
+            <button type="submit" className="font-mono text-xs text-flag underline">
               Sign out
             </button>
           </form>
         </div>
       </header>
 
-      <RenewalReminder
-        insurer="State Farm"
-        premiumMinor={84000}
-        currency="USD"
-        renewalDate="2026-11-20"
-      />
-
       {activeSubscriptions.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-rule bg-surface-2 p-12 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 border border-rule bg-surface-2 p-12 text-center">
           <p className="text-base text-ink">
             Nothing tracked yet. Add the first subscription you know you pay for.
           </p>
         </div>
       ) : (
         <>
-          <section>
-            <BurnRibbon bands={ribbonBands} windowStart={today} windowEnd={windowEnd} />
-          </section>
-
-          <section className="grid grid-cols-2 gap-6">
-            <div className="rounded border border-rule bg-surface-2 p-6">
-              <p className="text-xs tracking-wide text-ink-muted uppercase">Monthly burn</p>
-              <dl className="mt-2 flex flex-col gap-1">
-                {monthlyBurn.map((m) => (
-                  <dd key={m.currency} className="font-mono text-2xl text-ink">
-                    {formatMoney(m)}
-                  </dd>
-                ))}
-              </dl>
+          <section className="flex items-end justify-between">
+            <div>
+              <p className="mb-1.5 font-mono text-[11px] tracking-wide text-ink-muted uppercase">
+                Monthly burn
+              </p>
+              {monthlyBurn.map((m) => (
+                <p key={m.currency} className="font-mono text-4xl leading-none text-ink">
+                  {formatMoney(m)}
+                </p>
+              ))}
             </div>
-            <div className="rounded border border-rule bg-surface-2 p-6">
-              <p className="text-xs tracking-wide text-ink-muted uppercase">Annualised burn</p>
-              <dl className="mt-2 flex flex-col gap-1">
-                {annualizedBurn.map((m) => (
-                  <dd key={m.currency} className="font-mono text-2xl text-ink">
-                    {formatMoney(m)}
-                  </dd>
-                ))}
-              </dl>
+            <div className="text-right">
+              <p className="mb-1.5 font-mono text-[11px] tracking-wide text-ink-muted uppercase">
+                Annualised
+              </p>
+              {annualizedBurn.map((m) => (
+                <p key={m.currency} className="font-mono text-xl leading-none text-ink">
+                  {formatMoney(m)}
+                </p>
+              ))}
             </div>
           </section>
 
+          <RenewalReminder
+            insurer="State Farm"
+            premiumMinor={84000}
+            currency="USD"
+            renewalDate="2026-11-20"
+          />
+
           <section>
-            <h2 className="text-xs tracking-wide text-ink-muted uppercase">Upcoming billing</h2>
-            <ul className="mt-3 flex flex-col divide-y divide-rule border-y border-rule">
+            <BurnMonths months={monthlyBuckets} />
+          </section>
+
+          <section>
+            <h2 className="mb-2 font-mono text-[11px] tracking-wide text-ink-muted uppercase">
+              Upcoming billing
+            </h2>
+            <ul className="flex flex-col divide-y divide-rule border-y border-rule">
               {upcoming.map((sub) => (
                 <li key={sub.id} className="flex items-center justify-between py-3">
                   <div>

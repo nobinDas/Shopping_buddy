@@ -17,34 +17,45 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-8">
-      <p className="font-display text-2xl">Overhead</p>
+    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-7 pb-24">
+      <p className="mb-2.5 font-display text-4xl leading-none tracking-tight">Overhead</p>
+      <p className="mb-9 text-sm text-ink-muted">Recurring spending, made legible.</p>
 
       {status === 'sent' ? (
-        <p className="font-mono text-sm text-verified">Check your email for a sign-in link.</p>
+        <div>
+          <p className="mb-1.5 text-[15px] text-verified">Check your email for a sign-in link.</p>
+          <p className="text-[13px] text-ink-muted">Sent to {email}.</p>
+        </div>
       ) : (
-        <form onSubmit={handleSubmit} className="flex w-full max-w-xs flex-col gap-3">
-          <input
-            type="email"
-            required
-            autoFocus
-            value={email}
-            onChange={(event) => {
-              setEmail(event.target.value);
-            }}
-            placeholder="you@example.com"
-            className="border border-control-border bg-surface px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
-          />
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <label htmlFor="oh-email" className="mb-2 block">
+            <span className="mb-2 block font-mono text-[11px] tracking-wide text-ink-muted uppercase">
+              Email
+            </span>
+            <input
+              id="oh-email"
+              type="email"
+              required
+              autoFocus
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+              }}
+              className="h-12 w-full border border-control-border bg-surface px-3.5 text-base text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+            />
+          </label>
           <button
             type="submit"
             disabled={isPending}
-            className="bg-ink px-3 py-2 font-mono text-sm text-surface disabled:opacity-60"
+            className="h-12 w-full bg-ink font-sans text-[15px] font-medium text-surface disabled:opacity-60"
           >
             {isPending ? 'Sending…' : 'Send magic link'}
           </button>
-          {status === 'error' && (
-            <p className="font-mono text-sm text-flag">
-              Could not send link. Check the email and try again.
+          {status === 'error' ? (
+            <p className="mt-1 text-sm text-flag">Could not send link. Check the email and try again.</p>
+          ) : (
+            <p className="mt-1 text-xs text-ink-muted">
+              No password. Sign-in links expire after 15 minutes.
             </p>
           )}
         </form>

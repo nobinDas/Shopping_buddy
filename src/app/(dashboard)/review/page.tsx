@@ -1,10 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDate } from '@/lib/dates';
 
@@ -92,21 +88,37 @@ const initialProposals: MockProposal[] = [
 ];
 
 const typeLabel: Record<ProposalType, string> = {
-  confirm: 'Confirmed',
-  price_update: 'Price change',
-  date_update: 'Date change',
-  discovery: 'Discovery',
-  cancellation: 'Cancellation',
+  confirm: 'CONFIRM',
+  price_update: 'PRICE UPDATE',
+  date_update: 'DATE UPDATE',
+  discovery: 'DISCOVERY',
+  cancellation: 'CANCELLATION',
 };
 
 // See docs/DESIGN.md's three signal colours: flag = action needed,
 // verified = confirmed against email, pending = detected, awaiting review.
-const typeBadgeClass: Record<ProposalType, string> = {
-  confirm: 'border-verified text-verified',
-  price_update: 'border-flag text-flag',
-  date_update: 'border-pending text-pending',
-  discovery: 'border-pending text-pending',
-  cancellation: 'border-flag text-flag',
+const typeToneClass: Record<ProposalType, string> = {
+  confirm: 'text-verified',
+  price_update: 'text-flag',
+  date_update: 'text-flag',
+  discovery: 'text-pending',
+  cancellation: 'text-pending',
+};
+
+const acceptLabel: Record<ProposalType, string> = {
+  confirm: 'Confirm',
+  price_update: 'Accept new price',
+  date_update: 'Accept new date',
+  discovery: 'Add subscription',
+  cancellation: 'Archive',
+};
+
+const acceptedDoneLabel: Record<ProposalType, string> = {
+  confirm: 'CONFIRMED',
+  price_update: 'PRICE UPDATED',
+  date_update: 'DATE UPDATED',
+  discovery: 'ADDED',
+  cancellation: 'ARCHIVED',
 };
 
 function ProposalCard({
@@ -118,55 +130,51 @@ function ProposalCard({
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
 }) {
+  const rejected = proposal.status === 'rejected';
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle className="font-display text-lg font-normal">
-              {proposal.vendorName}
-            </CardTitle>
-            <p className="mt-1 font-mono text-sm text-ink">{proposal.summary}</p>
-          </div>
-          <Badge variant="outline" className={typeBadgeClass[proposal.proposalType]}>
-            {typeLabel[proposal.proposalType]}
-          </Badge>
+    <div className="border-b border-rule py-4">
+      <div className="mb-2 flex items-baseline justify-between">
+        <span className={`font-mono text-[10px] font-semibold tracking-widest ${typeToneClass[proposal.proposalType]}`}>
+          {typeLabel[proposal.proposalType]}
+        </span>
+        <span className="font-mono text-[10px] text-ink-muted">
+          {formatDate(proposal.detectedAt)}
+        </span>
+      </div>
+      <p className="mb-1.5 font-sans text-base font-medium text-ink">{proposal.vendorName}</p>
+      <p className="mb-3 font-mono text-sm text-ink">{proposal.summary}</p>
+      <p className="mb-3 text-[13px] leading-relaxed text-ink-muted">{proposal.reasoning}</p>
+
+      {proposal.status === 'pending' ? (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              onAccept(proposal.id);
+            }}
+            className="flex-1 bg-ink py-2.5 font-sans text-sm font-medium text-surface"
+          >
+            {acceptLabel[proposal.proposalType]}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onReject(proposal.id);
+            }}
+            className="flex-1 border border-control-border py-2.5 font-sans text-sm font-medium text-ink"
+          >
+            Reject
+          </button>
         </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <p className="text-sm text-ink-muted">{proposal.reasoning}</p>
-        <div className="flex items-center justify-between">
-          <p className="font-mono text-xs text-ink-muted">
-            Detected {formatDate(proposal.detectedAt)}
-          </p>
-          {proposal.status === 'pending' ? (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  onReject(proposal.id);
-                }}
-              >
-                Reject
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  onAccept(proposal.id);
-                }}
-              >
-                Accept
-              </Button>
-            </div>
-          ) : (
-            <p className="font-mono text-xs text-ink-muted uppercase">
-              {proposal.status === 'accepted' ? 'Accepted' : 'Rejected'}
-            </p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      ) : (
+        <p
+          className={`font-mono text-xs tracking-wide ${rejected ? 'text-ink-muted' : typeToneClass[proposal.proposalType]}`}
+        >
+          {rejected ? 'REJECTED' : acceptedDoneLabel[proposal.proposalType]}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -181,23 +189,18 @@ export default function ReviewQueuePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
-      <header>
-        <Link href="/" className="font-mono text-xs text-ink-muted underline">
-          ← Overhead
-        </Link>
-        <p className="mt-2 font-display text-2xl">Review queue</p>
-      </header>
+    <main className="flex min-h-screen flex-col gap-4 px-5 pt-6">
+      <p className="font-display text-[28px] tracking-tight">Review</p>
 
       <Tabs defaultValue="pending">
         <TabsList>
-          <TabsTrigger value="pending">Pending ({pending.length})</TabsTrigger>
-          <TabsTrigger value="resolved">Resolved ({resolved.length})</TabsTrigger>
+          <TabsTrigger value="pending">Pending {pending.length}</TabsTrigger>
+          <TabsTrigger value="resolved">Resolved {resolved.length}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pending" className="mt-4 flex flex-col gap-4">
+        <TabsContent value="pending">
           {pending.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded border border-rule bg-surface-2 p-12 text-center">
+            <div className="flex flex-col items-center justify-center gap-2 border border-rule bg-surface-2 p-12 text-center">
               <p className="text-base text-ink">Nothing waiting on you. Detection runs daily.</p>
             </div>
           ) : (
@@ -216,9 +219,9 @@ export default function ReviewQueuePage() {
           )}
         </TabsContent>
 
-        <TabsContent value="resolved" className="mt-4 flex flex-col gap-4">
+        <TabsContent value="resolved">
           {resolved.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded border border-rule bg-surface-2 p-12 text-center">
+            <div className="flex flex-col items-center justify-center gap-2 border border-rule bg-surface-2 p-12 text-center">
               <p className="text-base text-ink">Nothing resolved yet.</p>
             </div>
           ) : (

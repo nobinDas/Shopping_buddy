@@ -10,6 +10,25 @@ That single constraint drives everything below. Overhead is an **instrument**, n
 a dashboard product. It reads a quantity that already exists and presents it
 precisely. Closer to a utility meter or a statement than to a fintech app.
 
+## Mobile-first, from ADR-009
+
+The product is designed mobile-first now — a 390×844 shell with a
+persistent 5-tab bottom nav (Dashboard, Subscriptions, Review, Shopping,
+More) — not a desktop layout that happens to be responsive. Every screen
+still renders on a wider viewport too (the content column stays centered
+and capped at a comfortable reading width rather than stretching full
+width), but the design target is the phone, and any new screen should be
+designed as a phone screen first. See ADR-009 in `DECISIONS.md` for the
+full rationale, including why this doesn't foreclose either a
+Capacitor-style app-store wrapper or a future native rewrite later.
+
+The burn ribbon described below — a continuous horizontal timeline with
+hover tooltips — is **superseded** by a tap-a-month bar chart with a
+drill-down list underneath, the interaction the mobile design specifies
+(hover has no equivalent on a touch device). The rest of this section's
+rules (twelve months, scaled by amount, no horizontal scroll) still apply
+to the new chart; only the interaction model changed.
+
 ## Direction
 
 **Statement precision.** The visual vernacular is the billing statement and the

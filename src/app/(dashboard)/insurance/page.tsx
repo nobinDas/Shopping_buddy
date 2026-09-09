@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { differenceInCalendarDays } from 'date-fns';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -174,82 +172,86 @@ export default function InsurancePage() {
   const [open, setOpen] = useState(false);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-8">
-      <header className="flex items-center justify-between">
-        <div>
-          <Link href="/" className="font-mono text-xs text-ink-muted underline">
-            ← Overhead
-          </Link>
-          <p className="mt-2 font-display text-2xl">Insurance</p>
-        </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>Add policy</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add insurance policy</DialogTitle>
-            </DialogHeader>
-            <PolicyForm
-              onAdd={(policy) => {
-                setPolicies((current) => [...current, policy]);
-                setOpen(false);
-              }}
-            />
-          </DialogContent>
-        </Dialog>
-      </header>
+    <main className="flex min-h-screen flex-col gap-4 px-5 pt-6">
+      <Link href="/more" className="font-mono text-xs text-ink-muted underline">
+        ← More
+      </Link>
+      <p className="font-display text-[28px] tracking-tight">Insurance</p>
 
       {policies.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-rule bg-surface-2 p-12 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 border border-rule bg-surface-2 p-12 text-center">
           <p className="text-base text-ink">
             No policies tracked yet. Add the first one you know is due for renewal.
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3.5">
           {policies.map((policy) => {
             const remaining = daysUntil(policy.renewalDate);
             const dueSoon = remaining <= policy.reminderLeadDays;
             return (
-              <Card key={policy.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="font-display text-lg font-normal">
-                        {policy.insurer}
-                      </CardTitle>
-                      <p className="mt-1 font-mono text-xs text-ink-muted">{policy.policyNumber}</p>
-                    </div>
-                    <Badge variant="outline">{typeLabel[policy.type]}</Badge>
+              <div key={policy.id} className="border border-rule p-4">
+                <div className="mb-3 flex items-baseline justify-between">
+                  <span className="font-sans text-base font-medium text-ink">{policy.insurer}</span>
+                  {dueSoon ? (
+                    <span className="font-mono text-[10px] font-semibold tracking-widest text-pending">
+                      RENEWS IN {remaining} DAYS
+                    </span>
+                  ) : (
+                    <span className="font-mono text-[10px] tracking-widest text-ink-muted">
+                      {typeLabel[policy.type].toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-y-3">
+                  <div>
+                    <p className="mb-1 font-mono text-[10px] text-ink-muted">PREMIUM</p>
+                    <p className="font-mono text-xl text-ink">
+                      {formatMoney({ amountMinor: policy.premiumMinor, currency: policy.currency })}
+                    </p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-mono text-xl text-ink">
-                        {formatMoney({
-                          amountMinor: policy.premiumMinor,
-                          currency: policy.currency,
-                        })}
-                        <span className="ml-1 text-sm text-ink-muted">
-                          / {policy.termMonths} mo
-                        </span>
-                      </p>
-                      <p
-                        className={`mt-1 font-mono text-sm ${dueSoon ? 'text-flag' : 'text-ink-muted'}`}
-                      >
-                        Renews {formatDate(policy.renewalDate)}
-                        {dueSoon ? ` · in ${String(remaining)} days` : ''}
-                      </p>
-                    </div>
+                  <div>
+                    <p className="mb-1 font-mono text-[10px] text-ink-muted">TERM</p>
+                    <p className="text-sm text-ink">{policy.termMonths} months</p>
                   </div>
-                </CardContent>
-              </Card>
+                  <div>
+                    <p className="mb-1 font-mono text-[10px] text-ink-muted">POLICY</p>
+                    <p className="font-mono text-[13px] text-ink">{policy.policyNumber}</p>
+                  </div>
+                  <div>
+                    <p className="mb-1 font-mono text-[10px] text-ink-muted">RENEWS</p>
+                    <p className="font-mono text-[13px] text-ink">{formatDate(policy.renewalDate)}</p>
+                  </div>
+                </div>
+              </div>
             );
           })}
         </div>
       )}
+
+      <p className="text-[13px] leading-relaxed text-ink-muted">
+        Premiums fold into the dashboard&apos;s burn. This is a category view, not a separate
+        ledger.
+      </p>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button className="h-12 w-full rounded-none bg-ink text-sm font-medium text-surface hover:bg-ink/90">
+            Add a policy
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add insurance policy</DialogTitle>
+          </DialogHeader>
+          <PolicyForm
+            onAdd={(policy) => {
+              setPolicies((current) => [...current, policy]);
+              setOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

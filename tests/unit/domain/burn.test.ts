@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateMonthlyBurn } from '@/server/domain/burn';
+import { calculateMonthlyBurn, groupOccurrencesByMonth, type BurnOccurrence } from '@/server/domain/burn';
 
 describe('calculateMonthlyBurn', () => {
   it('returns an empty array for an empty input', () => {
@@ -166,5 +166,99 @@ describe('calculateMonthlyBurn', () => {
 
       expect(result).toEqual([{ amountMinor: -1000, currency: 'USD' }]);
     });
+  });
+});
+
+describe('groupOccurrencesByMonth', () => {
+  function occ(overrides: Partial<BurnOccurrence> & { date: string }): BurnOccurrence {
+    return {
+      id: overrides.date,
+      subscriptionId: 'sub-1',
+      name: 'Netflix',
+      amountMinor: 1000,
+      currency: 'USD',
+      ...overrides,
+    };
+  }
+
+  it('returns one bucket per month, in order, starting from windowStart', () => {
+    const buckets = groupOccurrencesByMonth([], '2026-09-15', 3);
+
+    expect(buckets.map((b) => b.monthStart)).toEqual(['2026-09-01', '2026-10-01', '2026-11-01']);
+  });
+
+  it('defaults to 12 months', () => {
+    const buckets = groupOccurrencesByMonth([], '2026-01-01');
+
+    expect(buckets).toHaveLength(12);
+    expect(buckets[11]?.monthStart).toBe('2026-12-01');
+  });
+
+  it('an empty occurrence list produces empty buckets, not zero totals', () => {
+    const buckets = groupOccurrencesByMonth([], '2026-09-01', 1);
+
+    expect(buckets[0]).toEqual({ monthStart: '2026-09-01', totals: [], occurrences: [] });
+  });
+
+  it('places an occurrence in the bucket for its calendar month', () => {
+    const buckets = groupOccurrencesByMonth([occ({ date: '2026-10-15' })], '2026-09-01', 3);
+
+    expect(buckets[0]?.occurrences).toEqual([]);
+    expect(buckets[1]?.occurrences).toHaveLength(1);
+    expect(buckets[2]?.occurrences).toEqual([]);
+  });
+
+  it('handles a month-boundary date correctly (first and last day of month)', () => {
+    const buckets = groupOccurrencesByMonth(
+      [occ({ date: '2026-09-01' }), occ({ date: '2026-09-30' }), occ({ date: '2026-10-01' })],
+      '2026-09-01',
+      2,
+    );
+
+    expect(buckets[0]?.occurrences.map((o) => o.date)).toEqual(['2026-09-01', '2026-09-30']);
+    expect(buckets[1]?.occurrences.map((o) => o.date)).toEqual(['2026-10-01']);
+  });
+
+  it('sorts occurrences within a bucket by date ascending', () => {
+    const buckets = groupOccurrencesByMonth(
+      [occ({ date: '2026-09-20' }), occ({ date: '2026-09-03' }), occ({ date: '2026-09-09' })],
+      '2026-09-01',
+      1,
+    );
+
+    expect(buckets[0]?.occurrences.map((o) => o.date)).toEqual([
+      '2026-09-03',
+      '2026-09-09',
+      '2026-09-20',
+    ]);
+  });
+
+  it('sums same-currency occurrences within a month', () => {
+    const buckets = groupOccurrencesByMonth(
+      [
+        occ({ date: '2026-09-03', amountMinor: 1799, currency: 'USD' }),
+        occ({ date: '2026-09-09', amountMinor: 1199, currency: 'USD' }),
+      ],
+      '2026-09-01',
+      1,
+    );
+
+    expect(buckets[0]?.totals).toEqual([{ amountMinor: 2998, currency: 'USD' }]);
+  });
+
+  it('keeps different currencies as separate totals rather than blending them', () => {
+    const buckets = groupOccurrencesByMonth(
+      [
+        occ({ date: '2026-09-03', amountMinor: 1000, currency: 'USD' }),
+        occ({ date: '2026-09-09', amountMinor: 900, currency: 'EUR' }),
+      ],
+      '2026-09-01',
+      1,
+    );
+
+    expect(buckets[0]?.totals).toEqual([
+      { amountMinor: 1000, currency: 'USD' },
+      { amountMinor: 900, currency: 'EUR' },
+    ]);
   });
 });
