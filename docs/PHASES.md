@@ -213,15 +213,13 @@ outstanding, not something separately planned or completed per trip.
 - [x] Every outstanding item across every list automatically consolidated
       into one continuous view, grouped by store — no manual "combine
       these lists into a trip" step
-- [ ] On-demand multi-stop route optimisation (shortest path from a saved
-      home address) across the currently outstanding stores — implemented,
-      live verification against the real Google Routes API pending
-- [ ] Drive duration between stops and an estimated shopping duration per
+- [x] On-demand multi-stop route optimisation (shortest path from a saved
+      home address) across the currently outstanding stores
+- [x] Drive duration between stops and an estimated shopping duration per
       store (from item count), shown as plain numbers — no leave-by clock
-      time, no rendered map — implemented, live verification pending
-- [ ] Store hours (fetched automatically via Google Places when a store
-      is added) shown as an open-now/closed-now indicator per store —
-      implemented, live verification pending
+      time, no rendered map
+- [x] Store hours (fetched automatically via Google Places when a store
+      is added) shown as an open-now/closed-now indicator per store
 
 **Exit criteria:** a real optimized route across real outstanding stores,
 with real drive-time and shopping-duration numbers, computed from a real

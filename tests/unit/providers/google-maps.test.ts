@@ -73,12 +73,31 @@ describe('parseRouteResponse', () => {
     expect(result).toEqual({ order: [1, 0], legMinutes: [10, 5] });
   });
 
-  it('defaults to input order when Google omits optimizedIntermediateWaypointIndex', () => {
+  it('defaults to natural order when Google omits optimizedIntermediateWaypointIndex', () => {
     const result = parseRouteResponse(
       { routes: [{ legs: [{ duration: '120s' }, { duration: '120s' }] }] },
       1,
     );
     expect(result?.order).toEqual([0]);
+  });
+
+  it('falls back to natural order when Google returns [-1] for a single stop', () => {
+    // Confirmed live against the real Routes API: with exactly one
+    // intermediate, Google returns [-1] instead of [0] — not a real
+    // permutation, so it must not be propagated as-is.
+    const result = parseRouteResponse(
+      {
+        routes: [
+          {
+            optimizedIntermediateWaypointIndex: [-1],
+            legs: [{ duration: '716s' }, { duration: '630s' }],
+          },
+        ],
+      },
+      1,
+    );
+
+    expect(result).toEqual({ order: [0], legMinutes: [12] });
   });
 
   it('returns null when there are no routes', () => {

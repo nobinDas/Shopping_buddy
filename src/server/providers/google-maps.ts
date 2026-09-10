@@ -133,6 +133,25 @@ function parseDurationSeconds(duration: string | undefined): number {
   return Number.isNaN(seconds) ? 0 : seconds;
 }
 
+function naturalOrder(stopCount: number): number[] {
+  return Array.from({ length: stopCount }, (_, i) => i);
+}
+
+/**
+ * Google returns `optimizedIntermediateWaypointIndex` as a real
+ * permutation only when there's something to optimize. With a single
+ * intermediate it returns `[-1]` instead of `[0]` — confirmed live
+ * against the real API, not documented anywhere obvious — so a
+ * "present but not a valid permutation of 0..stopCount-1" result falls
+ * back to natural order rather than propagating a bogus index.
+ */
+function isValidOrder(order: number[], stopCount: number): boolean {
+  if (order.length !== stopCount) return false;
+  const seen = new Set(order);
+  if (seen.size !== stopCount) return false;
+  return order.every((i) => i >= 0 && i < stopCount);
+}
+
 /**
  * Pure — no network call — unit-tested directly against fixture JSON.
  * `stopCount` is needed because Google always returns a leg for the final
@@ -146,8 +165,8 @@ export function parseRouteResponse(data: unknown, stopCount: number): RouteResul
   const route = response.routes?.[0];
   if (!route?.legs) return null;
 
-  const order =
-    route.optimizedIntermediateWaypointIndex ?? Array.from({ length: stopCount }, (_, i) => i);
+  const candidateOrder = route.optimizedIntermediateWaypointIndex ?? naturalOrder(stopCount);
+  const order = isValidOrder(candidateOrder, stopCount) ? candidateOrder : naturalOrder(stopCount);
   const legMinutes = route.legs
     .slice(0, stopCount)
     .map((leg) => Math.round(parseDurationSeconds(leg.duration) / 60));

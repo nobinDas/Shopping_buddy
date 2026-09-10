@@ -26,13 +26,12 @@ below. **Phase 2 (Insurance) is complete** — all 4 checklist items, real
 schema, live-verified. **Phase 3 (Shopping list, single-store price
 check) is complete** — all 5 checklist items, real schema, real SerpApi
 Walmart price lookups, live-verified. **Phase 4 (redesigned as a
-continuous route/duration view, ADR-013) is implementation-complete,
-`pnpm verify` green — live verification against the real Google Maps
-Platform APIs is blocked on the user setting up a Google Cloud billing
-account and a `GOOGLE_MAPS_API_KEY`.** Per ADR-010, LLM-touching phases
-(1d, 1e) are deferred to the end of the build; Microsoft OAuth is
-likewise unscheduled. A mobile-first UI/UX redesign (ADR-009) landed
-across every existing screen earlier.
+continuous route/duration view, ADR-013) is complete** — all 5 checklist
+items, live-verified against the real Google Routes API and Places API
+(New), real optimized routes and real store hours confirmed end to end.
+Per ADR-010, LLM-touching phases (1d, 1e) are deferred to the end of the
+build; Microsoft OAuth is likewise unscheduled. A mobile-first UI/UX
+redesign (ADR-009) landed across every existing screen earlier.
 **Last updated:** 2026-09-10
 
 ### Done
@@ -520,21 +519,41 @@ ADR-013 for the full reasoning:
   real pre-existing gap: Phase 3's `SERPAPI_API_KEY` was in `.env.local`
   but was never added to `.env.example`, so a fresh clone had no record
   it existed
-- **Live verification against the real Google Maps Platform APIs (actual
-  Places hours lookups, actual Routes drive-time/order calls) is still
-  blocked** on the user setting up a Google Cloud billing account and a
-  `GOOGLE_MAPS_API_KEY` — everything else about the phase is verified
-- Committed (`<pending>`)
+- **Google Cloud setup completed by the user**: billing enabled, Routes
+  API + Places API (New) enabled (legacy Places API disabled — unused by
+  this app), the key restricted to just those two APIs with "None"
+  application restriction (server-side calls have no HTTP referrer to
+  restrict by), and — the real hard safety net, since GCP budgets are
+  alert-only and don't stop billing — a **daily request quota** set well
+  under each API's free tier: 150/day on Routes' `ComputeRoutes` (≈4,500/
+  month vs. the 10,000/month free cap) and 100/day on Places'
+  `SearchTextRequest` (≈3,000/month), so real cost risk stays at
+  literally $0 regardless of any bug
+- **A real bug found via direct `curl` testing against the live Routes
+  API, not by review**: with exactly one intermediate stop,
+  `computeRoutes` returns `optimizedIntermediateWaypointIndex: [-1]` — a
+  sentinel, not a real index — which `parseRouteResponse` was blindly
+  trusting. Fixed by validating the returned order is an actual
+  permutation of `0..stopCount-1` before using it, falling back to
+  natural order otherwise; added a regression test using the real
+  response shape confirmed live. Multi-stop routing (2+ stops) was
+  already correct — the returned order there is a real permutation
+- **Live-verified the real Google API calls end to end**: added two real
+  stores (Trader Joe's, Costco, both in Mountain View) and got back real
+  weekly hours from Places; set a home address; added two shopping items
+  across both stores; `/trips` showed real "OPEN NOW" chips from live
+  Places data; "Plan route" returned a real optimized order (Costco
+  first, then Trader Joe's) with real drive minutes (5 min home→Costco,
+  11 min Costco→Trader Joe's) and a correct total (30 min = 16 min
+  driving + 7+7 min shopping estimates)
+- `pnpm verify` green: 150 unit (24 new), 56 integration (9 new)
+- Committed (`bb1519c`, plus a follow-up fix for the `[-1]` bug)
 
 ### In progress
 
-Nothing mid-task. Phase 4 above is fully implemented, live-verified
-everywhere reachable without a real Google Maps key, green, and
-committed. The one open item is the user's own Google Cloud billing/
-API-key setup — once `GOOGLE_MAPS_API_KEY` exists, a follow-up pass
-should verify a real Places hours lookup and a real Routes call, since
-those two external calls are the only parts of this phase not yet
-exercised against the real API.
+Nothing mid-task. Phase 4 is fully implemented, fully live-verified
+against the real Google Maps Platform APIs (not just the graceful-failure
+paths), green, and committed.
 
 ### Next
 
@@ -638,6 +657,39 @@ API calls is blocked on the user setting up a Google Cloud billing
 account and a `GOOGLE_MAPS_API_KEY` — flagged clearly, matching Phase
 1c/3's credential hand-offs. Once that exists: a short follow-up pass to
 verify a real hours lookup and a real route, then Phase 5.
+
+---
+
+### 2026-09-10 — Phase 4 follow-up: real Google Maps API verification, closing the phase
+**Did:** User set up Google Cloud billing, enabled Routes API + Places
+API (New) (disabled the unused legacy Places API), restricted the key to
+those two, and — the real safety net, since GCP budget alerts don't stop
+billing — set a daily request quota well under each API's free tier
+(150/day on Routes' `ComputeRoutes`, 100/day on Places'
+`SearchTextRequest`). Diagnosed two setup issues along the way via direct
+`curl` calls against the real endpoints (faster than guessing through the
+UI): `API_KEY_SERVICE_BLOCKED` (the key's own API-restriction list
+didn't include Places yet) and `SERVICE_DISABLED` (Places API (New)
+wasn't enabled at the project level, a separate setting from the key
+restriction). Live-verified the real thing end to end: two real stores
+added (Trader Joe's, Costco) with real weekly hours from Places, a real
+home address, two items split across both stores, `/trips` showing real
+"OPEN NOW" chips, and "Plan route" returning a real optimized order (5
+min home→Costco, 11 min Costco→Trader Joe's, 30 min total). **Found and
+fixed a real bug via that same `curl` testing, not by review**: with
+exactly one intermediate stop, Google's `computeRoutes` returns
+`optimizedIntermediateWaypointIndex: [-1]` — a sentinel, not a real
+index — which `parseRouteResponse` was passing through unvalidated.
+Fixed by checking the returned order is an actual permutation before
+using it, with a regression test built from the real response shape.
+`pnpm verify` green (150 unit, 56 integration). Test data (2 items, 2
+stores) cleaned up via the app's own delete/remove UI. Checked off
+Phase 4's remaining 3 checklist items in `PHASES.md` — **Phase 4 is now
+fully complete**.
+**Decided:** Nothing new scoping-wise — this was verification and a bug
+fix against the already-approved design, not a new choice.
+**Next:** Phase 5 (Price timing and stock check), per ADR-010's build
+order.
 
 ---
 
