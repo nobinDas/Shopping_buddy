@@ -25,15 +25,21 @@ At the start of a session that will change code, read `docs/MEMORY.md` first.
   Redact in errors too. Rules and threat model: `docs/SECURITY.md`.
 - **Every automated financial suggestion writes a `reasoning` record.** No silent
   recommendations.
-- **Never delete database data without explicit, specific permission first —
-  in every mode (auto, manual, plan-approved, or otherwise), no exceptions.**
-  Scope: rows/records in the database (subscriptions, price history, any
-  table's data) and migrations that drop data — not source files or code
-  changes, which are covered by normal git/plan-approval workflow as usual.
-  A general instruction like "clean this up" is never permission to delete
-  specific rows — name exactly what would be deleted and get a clear yes
-  first. When asking, prefix the question with `🛑 DELETE APPROVAL —` so it
-  is never confused with an ordinary permission prompt.
+- **Never delete or edit existing database data without explicit, specific
+  permission first — in every mode (auto, manual, plan-approved, or
+  otherwise), no exceptions, and regardless of process: this applies
+  equally to direct SQL and to deleting/editing through the app's own UI
+  (e.g. while live-testing a feature), and equally to data created earlier
+  in the same session.** Scope: existing rows/records in the database
+  (subscriptions, price history, any table's data) and migrations that
+  drop or alter data — not source files or code changes, which are
+  covered by normal git/plan-approval workflow as usual. Creating new rows
+  to test a feature is not covered by this rule; editing or deleting a row
+  that already exists is. A general instruction like "clean this up" is
+  never permission — name exactly what would be changed/deleted and get a
+  clear yes first. When asking, prefix with `🛑 DELETE APPROVAL —` for
+  deletions or `🛑 EDIT APPROVAL —` for edits, so it is never confused with
+  an ordinary permission prompt.
 
 ## Commands
 
