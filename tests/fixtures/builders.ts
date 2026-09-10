@@ -1,7 +1,8 @@
-import type { subscriptions, priceHistory } from '@/server/db/schema';
+import type { subscriptions, priceHistory, emailAccounts } from '@/server/db/schema';
 
 type NewSubscription = typeof subscriptions.$inferInsert;
 type NewPriceHistory = typeof priceHistory.$inferInsert;
+type NewEmailAccount = typeof emailAccounts.$inferInsert;
 
 /**
  * Builds a valid `subscriptions` insert row with sensible defaults,
@@ -37,6 +38,23 @@ export function buildPriceHistory(
     currency: 'USD',
     effectiveFrom: '2026-01-01',
     source: 'manual',
+    ...overrides,
+  };
+}
+
+/**
+ * Builds a valid `email_accounts` insert row. The token fields take real
+ * `Buffer`s (not real ciphertext) since the column type is `bytea` — tests
+ * that need actual encrypted values should run them through
+ * providers/crypto.ts's encryptToken themselves.
+ */
+export function buildEmailAccount(overrides: Partial<NewEmailAccount> = {}): NewEmailAccount {
+  return {
+    provider: 'google',
+    emailAddress: 'test@example.com',
+    accessTokenEnc: Buffer.from('test-access-token-ciphertext'),
+    refreshTokenEnc: Buffer.from('test-refresh-token-ciphertext'),
+    tokenExpiresAt: new Date('2026-01-01T00:00:00Z'),
     ...overrides,
   };
 }

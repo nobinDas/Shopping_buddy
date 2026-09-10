@@ -50,6 +50,32 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-09-10 — `server-only` throws under Vitest unless aliased
+**Context:** Writing unit tests for `providers/crypto.ts` (Phase 1c —
+AES-256-GCM token encryption). The file opens with `import 'server-only'`,
+the same guard `providers/supabase.ts` already uses, per
+`docs/ARCHITECTURE.md`'s rule that anything importing a secret lives in
+`src/server/`.
+**What I thought:** `server-only` is a no-op marker package — importing it
+anywhere should be harmless, since its whole job is just to fail a build
+if a *client* bundle pulls it in.
+**What was actually true:** it is not a no-op at the package level at
+all — `node_modules/server-only/index.js` unconditionally throws. The
+"no-op in a server context" behavior only exists because Next.js's
+webpack resolver swaps the import for an empty module when bundling for
+the server. Outside that resolver — i.e. under Vitest, which runs plain
+Node — the real, throwing file loads every time, so any test importing a
+`server-only`-guarded module (even indirectly) fails immediately.
+**Why it matters:** any Next.js convention that depends on the bundler
+doing a resolver-level swap is invisible from reading the source of the
+package itself — the docs and the code both look like a pure marker.
+Fixed with a one-line `resolve.alias` in `vitest.config.mts` pointing
+`'server-only'` at a local no-op file, mirroring exactly what Next's
+webpack config does. Worth checking for the same class of issue with any
+other "marker" package before assuming it's inert outside its intended
+bundler.
+**Portfolio-worthy:** no.
+
 ### 2026-08-10 — Magic links die on contact with Gmail's link scanner
 **Context:** Wiring up Phase 0.4's single-user auth with Supabase magic
 link. The route handler at `/auth/confirm` looked correct, matched

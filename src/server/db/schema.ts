@@ -8,7 +8,20 @@ import {
   date,
   timestamp,
   index,
+  customType,
 } from 'drizzle-orm/pg-core';
+
+// Drizzle's pg-core has no built-in `bytea` column (unlike e.g. `jsonb`),
+// so it's defined here as a custom type. The `postgres` driver this app
+// uses already parses `bytea` to/from a Node `Buffer` at the wire level,
+// so no toDriver/fromDriver mapping is needed — see
+// src/server/providers/crypto.ts, whose encrypt/decrypt functions this
+// column type exists to store the output of.
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return 'bytea';
+  },
+});
 
 /**
  * Phase 0 plumbing only. Proves the Supabase → Drizzle → migration pipeline
@@ -127,4 +140,47 @@ export const priceHistory = pgTable(
     index('price_history_subscription_id_idx').on(table.subscriptionId),
     index('price_history_effective_from_idx').on(table.effectiveFrom),
   ],
+).enableRLS();
+
+// ── email_accounts ────────────────────────────────────────────────────
+// Phase 1c. A connected inbox, read-only — see docs/SECURITY.md. Tokens
+// are never stored plaintext: accessTokenEnc/refreshTokenEnc hold
+// AES-256-GCM ciphertext produced by providers/crypto.ts, never a raw
+// token. Schema matches docs/DATA_MODEL.md's `email_accounts` table.
+
+export const emailProviderEnum = pgEnum('email_provider', ['google', 'microsoft']);
+
+export const emailAccountStatusEnum = pgEnum('email_account_status', [
+  'active',
+  'needs_reauth',
+  'disconnected',
+]);
+
+export const emailAccounts = pgTable(
+  'email_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    provider: emailProviderEnum('provider').notNull(),
+    emailAddress: text('email_address').notNull(),
+
+    accessTokenEnc: bytea('access_token_enc').notNull(),
+    refreshTokenEnc: bytea('refresh_token_enc').notNull(),
+    tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }).notNull(),
+
+    // Provider history ID / delta token — Phase 1c's incremental sync
+    // resumes from here rather than re-scanning the whole inbox. Null
+    // until the first sync runs.
+    syncCursor: text('sync_cursor'),
+    lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+
+    status: emailAccountStatusEnum('status').notNull().default('active'),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [index('email_accounts_status_idx').on(table.status)],
 ).enableRLS();

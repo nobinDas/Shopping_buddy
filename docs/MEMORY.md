@@ -18,11 +18,13 @@ session — a session that only answered questions changes nothing.
 ## Current state
 
 **Phase:** 1 — Subscription tracker MVP. Phase 0, 1a, 1b, and 1.5 are all
-complete. Phase 1c (real Google/Microsoft OAuth) is next. A mobile-first
-UI/UX redesign (ADR-009) just landed across every existing screen —
-UI/UX only, no backend/schema changes, so phase completion status is
-unaffected.
-**Last updated:** 2026-09-09
+complete. **Phase 1c is in progress**: the `email_accounts` schema, token
+encryption, and query layer are real and tested; the real Google OAuth
+connect flow and the accounts screen's real wiring are next, blocked on
+the user provisioning Google Cloud OAuth credentials. A mobile-first
+UI/UX redesign (ADR-009) landed across every existing screen earlier —
+UI/UX only, no backend/schema changes at the time.
+**Last updated:** 2026-09-10
 
 ### Done
 
@@ -252,23 +254,61 @@ UI/UX only:
   row highlight is still dropped for real data — the app has no concept
   of a scheduled future price change to highlight
 
+Phase 1c, stage 1 (2026-09-10) — schema, encryption, query layer, no
+OAuth yet:
+
+- `email_accounts` table added to `schema.ts` (`emailProviderEnum`,
+  `emailAccountStatusEnum`), migration `0003` generated and applied to
+  the real Supabase Postgres, RLS enabled matching every other table.
+  Token columns use a `bytea` custom type (`customType()` — Drizzle's
+  pg-core has no built-in `bytea` helper); the `postgres` driver already
+  parses it to/from a Node `Buffer` at the wire level, no mapping needed
+- `providers/crypto.ts`: `encryptToken`/`decryptToken`, AES-256-GCM via
+  Node's built-in `crypto` (no new dependency), key from
+  `TOKEN_ENCRYPTION_KEY`. Output layout `iv || authTag || ciphertext`,
+  self-contained. 8 unit tests: round-trip, tamper detection (GCM auth
+  tag), wrong-key failure, missing/malformed-key failure
+- Fixed a real test-infra gap found while writing those tests:
+  `import 'server-only'` throws under plain Vitest (it's only a no-op via
+  Next's webpack resolver, not the package itself) — added a
+  `resolve.alias` in `vitest.config.mts` pointing it at a local no-op
+  file. See `docs/LEARNED.md`, 2026-09-10
+- `db/queries/email-accounts.ts`: full CRUD mirroring
+  `queries/subscriptions.ts`'s shape, plus a real `deleteEmailAccount`
+  (hard delete, not a status flag — `docs/SECURITY.md`'s explicit
+  disconnect rule). `tests/fixtures/builders.ts` gained `buildEmailAccount`;
+  7 new integration tests against real Postgres
+- `.env.example` gained `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/
+  `TOKEN_ENCRYPTION_KEY` with setup instructions; a real
+  `TOKEN_ENCRYPTION_KEY` generated and added to `.env.local` (no external
+  account needed for that one, unlike the Google credentials)
+- `pnpm verify` green throughout (109 unit — 101 + 8 new — 20
+  integration — 13 + 7 new)
+- Not yet committed
+
 ### In progress
 
-Nothing mid-task. Phase 1.5 remains complete; the mobile-first redesign
-above is UI/UX only and doesn't change any phase's completion status.
+Phase 1c, stage 1 above is complete and verified but **not committed**.
+Stage 2 (real OAuth connect/callback routes, accounts screen wired to
+real data, Microsoft, actual sync) is blocked on the user setting up a
+Google Cloud OAuth client — exact steps are in the approved plan and were
+given to the user in chat.
 
 ### Next
 
-Phase 1c: real Google OAuth (read-only scope), then Microsoft OAuth,
-refresh-token storage encrypted at rest, and incremental sync with a
-per-account cursor. The accounts screen already exists (now restyled
-mobile-first, still mock data) — this phase replaces its mock state with
-real queries against a new `email_accounts` table, not a new UI. See
-`PHASES.md`.
+Once `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` exist in `.env.local`:
+`src/app/api/auth/google/start` + `.../callback` routes (the folder is
+already scaffolded as `.gitkeep` per `docs/ARCHITECTURE.md`), a
+`services/email-account.service.ts` for connect/disconnect/reconnect
+(disconnect must revoke with Google, not just delete the local row), and
+swap the accounts screen from its Phase 1.5 mock state to real queries.
+Then Microsoft OAuth, then incremental sync. See `PHASES.md`.
 
 ### Blocked
 
-Nothing.
+Phase 1c stage 2 is blocked on the user provisioning a Google Cloud OAuth
+client (console.cloud.google.com — consent screen + credentials). Not
+something this session can do.
 
 ---
 
@@ -319,6 +359,30 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-10 — Phase 1c, stage 1: email_accounts schema, token encryption, query layer
+**Did:** Started Phase 1c. Scoped with the user up front (confirmed no
+Google OAuth credentials exist yet) to build everything that doesn't need
+them this pass: the `email_accounts` table (migration `0003`, applied to
+real Postgres, confirmed via `list_tables`), `providers/crypto.ts`
+(AES-256-GCM token encryption, Node's built-in `crypto`, no new
+dependency), and a full `db/queries/email-accounts.ts` CRUD layer
+including a real hard-delete (per `docs/SECURITY.md`'s disconnect rule).
+Fixed a real Vitest/`server-only` incompatibility found while testing
+crypto.ts (see `docs/LEARNED.md`). Added `.env.example` entries and a
+real generated `TOKEN_ENCRYPTION_KEY` to `.env.local`. `pnpm verify`
+green (109 unit, 20 integration — 15 new tests total this session). No
+OAuth routes, no accounts-screen wiring, no Microsoft, no sync logic —
+all deliberately deferred to a follow-up pass. Full detail in Current
+State above. Not yet committed.
+**Decided:** Nothing new scoping-wise — this followed `docs/DATA_MODEL.md`'s
+already-specified `email_accounts` shape exactly, not a new design.
+**Next:** Hand-off given to the user: set up a Google Cloud OAuth client
+(steps in the approved plan / chat). Once `GOOGLE_CLIENT_ID`/
+`GOOGLE_CLIENT_SECRET` exist, build the real connect/callback routes and
+wire the accounts screen to real data.
 
 ---
 
