@@ -56,10 +56,7 @@ export async function createPolicyAction(formData: FormData): Promise<PolicyForm
   return { error: null };
 }
 
-export async function updatePolicyAction(
-  id: string,
-  formData: FormData,
-): Promise<PolicyFormState> {
+export async function updatePolicyAction(id: string, formData: FormData): Promise<PolicyFormState> {
   const parsed = parsePolicyForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input.' };

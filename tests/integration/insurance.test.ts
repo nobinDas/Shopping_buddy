@@ -60,9 +60,7 @@ describe('getAllPolicies', () => {
         const result = await getAllPolicies(tx);
 
         expect(result).toHaveLength(2);
-        expect(result.map((p) => p.id).sort()).toEqual(
-          [active[0]?.id, archived[0]?.id].sort(),
-        );
+        expect(result.map((p) => p.id).sort()).toEqual([active[0]?.id, archived[0]?.id].sort());
 
         tx.rollback();
       }),

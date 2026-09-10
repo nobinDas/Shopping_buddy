@@ -58,13 +58,7 @@ export type PolicyWithNextBillingDate = PolicyRow & { nextBillingDate: string };
 
 type DialogState = { mode: 'create' } | { mode: 'edit'; policy: PolicyRow } | null;
 
-function PolicyForm({
-  policy,
-  onSaved,
-}: {
-  policy?: PolicyRow;
-  onSaved: () => void;
-}) {
+function PolicyForm({ policy, onSaved }: { policy?: PolicyRow; onSaved: () => void }) {
   const [type, setType] = useState<PolicyRow['type']>(policy?.type ?? 'auto');
   const [cycle, setCycle] = useState<(typeof cycleValues)[number]>(policy?.cycle ?? 'semiannual');
   const [error, setError] = useState<string | null>(null);
@@ -280,9 +274,7 @@ export function PolicyList({ policies }: { policies: PolicyWithNextBillingDate[]
                 className={`border border-rule p-4 ${archived ? 'opacity-55' : ''}`}
               >
                 <div className="mb-3 flex items-baseline justify-between">
-                  <span className="font-sans text-base font-medium text-ink">
-                    {policy.insurer}
-                  </span>
+                  <span className="font-sans text-base font-medium text-ink">{policy.insurer}</span>
                   {archived ? (
                     <span className="font-mono text-[10px] tracking-widest text-ink-muted">
                       ARCHIVED

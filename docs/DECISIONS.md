@@ -27,6 +27,58 @@ not actually examined.
 
 ---
 
+## ADR-013 — Phase 4 redesigned as a continuous, item-level-due-date view instead of discrete deadline-driven trips
+
+**Date:** 2026-09-10
+**Status:** accepted
+**Context:** `PHASES.md`'s original Phase 4 scope was a discrete "trip"
+entity with its own due time, computing a leave-by clock time backward
+from that deadline — matching the Phase 1.5 mock. Talking through the
+plan surfaced a real gap: a trip covering two stores where the user only
+visits one has no clear next step for the other store's items under that
+model — reschedule it? Leave it stuck in a half-finished trip forever?
+The user redirected the design instead of asking for a reschedule
+feature: due dates belong on individual shopping items, not on a trip,
+and `/trips` should be a continuous view of whatever is currently
+outstanding rather than a series of discrete, completable events. The
+user also asked to drop the leave-by/arrive-by clock time entirely —
+due dates are dates, not times, so a countdown to departure doesn't
+apply — in favor of plain drive-time and shopping-duration numbers.
+**Decision:** `shoppingListItems` gained `dueAt` (optional, per item) and
+`checkedAt` (stamped on check, cleared on uncheck). There is no `trips`
+table, no trip entity at all. `/trips` queries every outstanding
+(unchecked) item across every list on each load, groups by store, sorts
+by urgency (soonest `dueAt` first, no-due-date items last), and shows an
+overdue flag on any item whose `dueAt` has passed. Route optimization
+(Google Routes API, `optimizeWaypointOrder`) and per-store hours (Google
+Places) run on demand from this same live query — never against a
+persisted "trip." A checked item stays visible (struck through) through
+the rest of the day it was checked, then drops out of `/shopping`'s view
+(not deleted — `domain/shopping-visibility.ts`).
+**Consequences:** There's no history of past trips, no "trip complete"
+state, and no leave-by clock time — a real, deliberate loss if a future
+need for scheduled-arrival planning (e.g., "I must be at this store by
+6pm before it closes") turns up; that would need to be designed back in,
+not just re-enabled, since the whole model no longer carries a
+scheduled-time concept anywhere. The "two stores, only visit one" problem
+this was meant to solve is resolved for free by the continuous model —
+whatever wasn't bought simply remains visible, sorted by urgency, the
+next time the view opens — but at the cost of no explicit UI ever telling
+the user "you didn't finish something," relying instead on the same
+passive urgency/overdue indicators that cover every other outstanding
+item.
+**Alternatives considered:** Keeping discrete trips with an explicit
+reschedule flow (detect an unfinished trip, prompt the user to plan
+another one for the remaining stores before their due date) — rejected as
+meaningfully more moving parts (a trip-completion concept, a reschedule
+prompt, a way to track which stops were actually visited) for a problem
+the continuous model resolves structurally. Keeping a leave-by clock time
+by also collecting a due *time* alongside the due *date* — rejected per
+the user's explicit preference for plain durations over a scheduled
+departure time.
+
+---
+
 ## ADR-012 — SerpApi's Walmart engine as Phase 3's price source, not Walmart's own APIs
 
 **Date:** 2026-09-10

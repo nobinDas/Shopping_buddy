@@ -1,8 +1,15 @@
 import { eq } from 'drizzle-orm';
 import { db, type DbClient } from '@/server/db';
 import { preferredStores } from '@/server/db/schema';
+import type { OpeningPeriod } from '@/server/domain/store-hours';
 
 export type PreferredStoreRow = typeof preferredStores.$inferSelect;
+
+export interface StoreHoursUpdate {
+  placeId: string | null;
+  openingHoursText: string[] | null;
+  openingHoursPeriods: OpeningPeriod[] | null;
+}
 
 export async function getAllStores(client: DbClient = db): Promise<PreferredStoreRow[]> {
   return client.select().from(preferredStores);
@@ -18,14 +25,28 @@ export async function getAllStores(client: DbClient = db): Promise<PreferredStor
  */
 export async function insertStore(
   name: string,
+  address: string,
   client: DbClient = db,
 ): Promise<PreferredStoreRow | undefined> {
   const [row] = await client
     .insert(preferredStores)
-    .values({ name })
+    .values({ name, address })
     .onConflictDoNothing()
     .returning();
   return row;
+}
+
+/**
+ * Writes the Places-resolved hours onto a store. Called once, right after
+ * insertStore, by services/stores.service.ts — never a standalone
+ * "refresh hours" action this phase.
+ */
+export async function updateStoreHours(
+  id: string,
+  hours: StoreHoursUpdate,
+  client: DbClient = db,
+): Promise<void> {
+  await client.update(preferredStores).set(hours).where(eq(preferredStores.id, id));
 }
 
 export async function deleteStore(id: string, client: DbClient = db): Promise<void> {

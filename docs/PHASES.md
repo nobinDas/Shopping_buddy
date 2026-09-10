@@ -201,16 +201,31 @@ generalising to comparison across retailers.
 
 ---
 
-## Phase 4 — Route and deadline planner
+## Phase 4 — Continuous route and duration view
 
-Technically the most tractable piece — a mapping API does the heavy lifting.
+Redesigned from the original "deadline-driven, discrete trip" framing —
+see ADR-013 in `DECISIONS.md` for why. Due dates live on individual
+shopping items; `/trips` is always a live view of what's currently
+outstanding, not something separately planned or completed per trip.
 
-- [ ] Multi-stop route optimisation across selected stores
-- [ ] Deadline-driven planning: given a due time, compute leave-by time
-- [ ] Trip consolidation: merge lists due in the same window into one trip
-- [ ] Store hours factored into feasibility
+- [x] Item-level due dates (optional, set from the shopping-item edit
+      panel), with urgency sorting and an overdue flag on `/trips`
+- [x] Every outstanding item across every list automatically consolidated
+      into one continuous view, grouped by store — no manual "combine
+      these lists into a trip" step
+- [ ] On-demand multi-stop route optimisation (shortest path from a saved
+      home address) across the currently outstanding stores — implemented,
+      live verification against the real Google Routes API pending
+- [ ] Drive duration between stops and an estimated shopping duration per
+      store (from item count), shown as plain numbers — no leave-by clock
+      time, no rendered map — implemented, live verification pending
+- [ ] Store hours (fetched automatically via Google Places when a store
+      is added) shown as an open-now/closed-now indicator per store —
+      implemented, live verification pending
 
-**Exit criteria:** a real multi-stop trip planned with an accurate leave-by time.
+**Exit criteria:** a real optimized route across real outstanding stores,
+with real drive-time and shopping-duration numbers, computed from a real
+saved home address and real store addresses.
 
 ---
 

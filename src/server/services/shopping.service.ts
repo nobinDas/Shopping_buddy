@@ -14,6 +14,8 @@ export interface ItemInput {
   quantity: number;
   notes: string | null;
   store: string | null;
+  /** ISO date (YYYY-MM-DD), or null for no deadline. Drives /trips' urgency sort — see docs/DECISIONS.md's Phase 4 ADR. */
+  dueAt: string | null;
 }
 
 export async function addItem(
@@ -28,6 +30,7 @@ export async function addItem(
       quantity: input.quantity,
       notes: input.notes,
       store: input.store,
+      dueAt: input.dueAt,
     },
     client,
   );
@@ -45,6 +48,7 @@ export async function updateItem(
       quantity: input.quantity,
       notes: input.notes,
       store: input.store,
+      dueAt: input.dueAt,
     },
     client,
   );
@@ -54,11 +58,19 @@ export async function deleteItem(id: string, client: DbClient = db): Promise<voi
   await deleteItemRow(id, client);
 }
 
+/**
+ * Flips `checked` and stamps `checkedAt` to now (or clears it back to
+ * null on uncheck) in the same update — the one place `checked` ever
+ * changes, so the one place this needs to live. checkedAt is what
+ * domain/shopping-visibility.ts uses to know when to stop showing a
+ * bought item on /shopping.
+ */
 export async function toggleItemChecked(
   item: ShoppingItemRow,
   client: DbClient = db,
 ): Promise<ShoppingItemRow> {
-  return updateItemRow(item.id, { checked: !item.checked }, client);
+  const checked = !item.checked;
+  return updateItemRow(item.id, { checked, checkedAt: checked ? new Date() : null }, client);
 }
 
 export type PriceCheckResult =

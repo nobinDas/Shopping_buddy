@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 describe('buildAuthorizationUrl', () => {
-  it('points at Google\'s authorization endpoint', () => {
+  it("points at Google's authorization endpoint", () => {
     const url = new URL(buildAuthorizationUrl({ state: 'abc123' }));
     expect(url.origin + url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth');
   });

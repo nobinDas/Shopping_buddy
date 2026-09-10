@@ -33,11 +33,15 @@ export function BurnMonths({ months }: BurnMonthsProps) {
 
       <div
         className="grid items-end gap-[3px] border-b border-rule"
-        style={{ gridTemplateColumns: `repeat(${String(months.length)}, 1fr)`, height: BAR_TRACK_PX }}
+        style={{
+          gridTemplateColumns: `repeat(${String(months.length)}, 1fr)`,
+          height: BAR_TRACK_PX,
+        }}
       >
         {months.map((month, index) => {
           const total = month.totals[0]?.amountMinor ?? 0;
-          const barHeight = total === 0 ? MIN_BAR_PX : Math.max(MIN_BAR_PX, (total / maxTotal) * BAR_TRACK_PX);
+          const barHeight =
+            total === 0 ? MIN_BAR_PX : Math.max(MIN_BAR_PX, (total / maxTotal) * BAR_TRACK_PX);
           return (
             <button
               key={month.monthStart}

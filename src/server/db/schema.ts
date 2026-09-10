@@ -10,6 +10,7 @@ import {
   index,
   uniqueIndex,
   boolean,
+  jsonb,
   customType,
 } from 'drizzle-orm/pg-core';
 
@@ -276,6 +277,17 @@ export const shoppingListItems = pgTable(
     // checked state — a real list should remember what's checked off
     // across a session, not reset on reload.
     checked: boolean('checked').notNull().default(false),
+    // Set the moment `checked` flips true, cleared back to null if
+    // unchecked — Phase 4 uses this (not updatedAt, which bumps on any
+    // edit) to know precisely when to stop showing a bought item on
+    // /shopping: visible through the rest of the day it was checked,
+    // hidden after. See domain/shopping-visibility.ts.
+    checkedAt: timestamp('checked_at', { withTimezone: true }),
+
+    // Phase 4: optional per-item shopping deadline. Drives /trips'
+    // urgency sort and overdue flag — there is no trip-level due date,
+    // see docs/DECISIONS.md's Phase 4 ADR.
+    dueAt: date('due_at'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
@@ -322,7 +334,38 @@ export const preferredStores = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
+    // Phase 4: plain free-text address (no Places Autocomplete — a
+    // deliberate scope cut, see docs/DECISIONS.md). Required for a store
+    // to be included in route planning.
+    address: text('address').notNull(),
+    // Resolved once, at add-time, via providers/google-maps.ts's
+    // Places lookup keyed on name + address — null if no confident match
+    // was found. Not re-resolved automatically; no refresh action this
+    // phase.
+    placeId: text('place_id'),
+    // Human-readable weekly hours (Places' regularOpeningHours
+    // .weekdayDescriptions), shown as-is in the UI.
+    openingHoursText: text('opening_hours_text').array(),
+    // Normalized `{ day: 0-6, opensAt: "HH:mm", closesAt: "HH:mm" }[]`,
+    // first period per day only — used for /trips' open-now chip. A
+    // split-schedule store (e.g. a lunch closure) only gets its first
+    // period considered, a deliberate small cut.
+    openingHoursPeriods: jsonb('opening_hours_periods'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [uniqueIndex('preferred_stores_name_idx').on(table.name)],
 ).enableRLS();
+
+// ── user_settings ──────────────────────────────────────────────────────
+// Phase 4. A single row (id is always the literal 'default') — one setting
+// exists so far (the route-planning origin address), not a speculative
+// key/value table for settings that don't exist yet.
+
+export const userSettings = pgTable('user_settings', {
+  id: text('id').primaryKey(),
+  homeAddress: text('home_address'),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+}).enableRLS();

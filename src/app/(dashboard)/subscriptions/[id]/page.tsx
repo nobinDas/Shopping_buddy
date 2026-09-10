@@ -44,7 +44,9 @@ export default async function SubscriptionDetailPage({ params }: SubscriptionDet
       </p>
 
       <div className="mt-4 mb-1 flex items-baseline gap-2.5">
-        <span className={`font-mono text-4xl leading-none ${archived ? 'text-ink-muted' : 'text-ink'}`}>
+        <span
+          className={`font-mono text-4xl leading-none ${archived ? 'text-ink-muted' : 'text-ink'}`}
+        >
           {formatMoney({ amountMinor: subscription.amountMinor, currency: subscription.currency })}
         </span>
         <span className="text-[13px] text-ink-muted">
@@ -97,7 +99,9 @@ export default async function SubscriptionDetailPage({ params }: SubscriptionDet
                     </span>
                   </p>
                 ) : (
-                  <p className={`text-[13px] leading-normal ${increased ? 'text-flag' : 'text-ink'}`}>
+                  <p
+                    className={`text-[13px] leading-normal ${increased ? 'text-flag' : 'text-ink'}`}
+                  >
                     {sameCurrencyChange ? (
                       <>
                         Went from{' '}

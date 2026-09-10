@@ -135,7 +135,9 @@ function ProposalCard({
   return (
     <div className="border-b border-rule py-4">
       <div className="mb-2 flex items-baseline justify-between">
-        <span className={`font-mono text-[10px] font-semibold tracking-widest ${typeToneClass[proposal.proposalType]}`}>
+        <span
+          className={`font-mono text-[10px] font-semibold tracking-widest ${typeToneClass[proposal.proposalType]}`}
+        >
           {typeLabel[proposal.proposalType]}
         </span>
         <span className="font-mono text-[10px] text-ink-muted">

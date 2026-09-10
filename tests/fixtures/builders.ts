@@ -131,11 +131,10 @@ export function buildItemPriceHistory(
 }
 
 /** Builds a valid `preferred_stores` insert row. */
-export function buildPreferredStore(
-  overrides: Partial<NewPreferredStore> = {},
-): NewPreferredStore {
+export function buildPreferredStore(overrides: Partial<NewPreferredStore> = {}): NewPreferredStore {
   return {
     name: 'Test Store',
+    address: '123 Test St, Testville, TS 00000',
     ...overrides,
   };
 }

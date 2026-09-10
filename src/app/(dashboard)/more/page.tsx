@@ -11,8 +11,9 @@ const SECTIONS = [
   { href: '/accounts', label: 'Accounts', badge: '1 NEEDS REAUTH', tone: 'text-pending' },
   { href: '/stores', label: 'Preferred stores', badge: '4', tone: 'text-ink-muted' },
   { href: '/insurance', label: 'Insurance', badge: '2', tone: 'text-ink-muted' },
-  { href: '/trips', label: 'Trips', badge: '2 PLANNED', tone: 'text-ink-muted' },
+  { href: '/trips', label: 'Trips', badge: '', tone: 'text-ink-muted' },
   { href: '/watchlist', label: 'Watchlist', badge: '3', tone: 'text-ink-muted' },
+  { href: '/settings', label: 'Settings', badge: '', tone: 'text-ink-muted' },
 ] as const;
 
 export default function MorePage() {

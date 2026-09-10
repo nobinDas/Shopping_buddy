@@ -1,10 +1,6 @@
 import { format } from 'date-fns';
 import { db, type DbClient } from '@/server/db';
-import {
-  insertPolicy,
-  updatePolicyRow,
-  type PolicyRow,
-} from '@/server/db/queries/insurance';
+import { insertPolicy, updatePolicyRow, type PolicyRow } from '@/server/db/queries/insurance';
 import { computeNextBillingDate } from '@/server/domain/billing-cycle';
 import type { InsuranceInput } from '@/lib/validation/insurance';
 

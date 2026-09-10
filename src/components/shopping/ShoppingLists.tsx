@@ -38,7 +38,7 @@ function listSubtotal(items: ShoppingItemRow[]): Money | null {
 
 type PriceCheckState = { status: 'checking' } | PriceCheckResult;
 
-function EditPanel({
+export function EditPanel({
   item,
   storeOptions,
   onDone,
@@ -87,6 +87,16 @@ function EditPanel({
         aria-label="Notes"
         className="border border-control-border bg-surface px-3 py-2 text-sm text-ink outline-none"
       />
+      <label className="flex flex-col gap-1 font-mono text-[10px] tracking-wide text-ink-muted uppercase">
+        Due date (optional)
+        <input
+          name="dueAt"
+          type="date"
+          defaultValue={item.dueAt ?? ''}
+          aria-label="Due date"
+          className="border border-control-border bg-surface px-3 py-2 font-sans text-sm text-ink outline-none normal-case"
+        />
+      </label>
       <div className="flex gap-2">
         <Select value={store} onValueChange={setStore}>
           <SelectTrigger className="flex-1">

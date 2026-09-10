@@ -175,8 +175,8 @@ export function AccountsList({ accounts }: { accounts: EmailAccountSummary[] }) 
             <AlertDialogTitle>Disconnect {pendingDisconnect?.emailAddress}?</AlertDialogTitle>
             <AlertDialogDescription>
               Overhead revokes access with the provider and removes the connection immediately.
-              Subscriptions already confirmed from it stay as they are — nothing already recorded
-              is removed.
+              Subscriptions already confirmed from it stay as they are — nothing already recorded is
+              removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

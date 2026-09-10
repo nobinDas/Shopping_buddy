@@ -12,6 +12,10 @@ export interface ListWithItems extends ShoppingListRow {
   items: ShoppingItemRow[];
 }
 
+export interface OutstandingItem extends ShoppingItemRow {
+  listName: string;
+}
+
 /**
  * Fetches every list with its items attached. Two queries + in-memory
  * grouping rather than a join — simpler to reason about at this data
@@ -26,6 +30,23 @@ export async function getAllLists(client: DbClient = db): Promise<ListWithItems[
     ...list,
     items: items.filter((item) => item.listId === list.id),
   }));
+}
+
+/**
+ * Every unchecked item across every list, with its list's name attached —
+ * the /trips view's data source. Unlike getAllLists, this never includes
+ * checked items: /trips only ever shows what's left to shop, so there's
+ * no midnight-visibility rule to apply here (that's /shopping's concern,
+ * via domain/shopping-visibility.ts).
+ */
+export async function getAllOutstandingItems(client: DbClient = db): Promise<OutstandingItem[]> {
+  const rows = await client
+    .select({ item: shoppingListItems, listName: shoppingLists.name })
+    .from(shoppingListItems)
+    .innerJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
+    .where(eq(shoppingListItems.checked, false));
+
+  return rows.map(({ item, listName }) => ({ ...item, listName }));
 }
 
 export async function getItemById(

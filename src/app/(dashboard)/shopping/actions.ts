@@ -23,6 +23,7 @@ function parseItemForm(formData: FormData) {
   const quantityRaw = getFormString(formData, 'quantity');
   const notesRaw = getFormString(formData, 'notes');
   const storeRaw = getFormString(formData, 'store');
+  const dueAtRaw = getFormString(formData, 'dueAt');
 
   if (!name) {
     return null;
@@ -34,6 +35,7 @@ function parseItemForm(formData: FormData) {
     quantity: Number.isFinite(quantity) && quantity > 0 ? Math.trunc(quantity) : 1,
     notes: notesRaw?.trim() ? notesRaw.trim() : null,
     store: storeRaw?.trim() ? storeRaw.trim() : null,
+    dueAt: dueAtRaw?.trim() ? dueAtRaw.trim() : null,
   };
 }
 
@@ -43,6 +45,7 @@ export async function addItemAction(listId: string, formData: FormData): Promise
 
   await addItem(listId, input);
   revalidatePath('/shopping');
+  revalidatePath('/trips');
 }
 
 export async function updateItemAction(id: string, formData: FormData): Promise<void> {
@@ -51,11 +54,13 @@ export async function updateItemAction(id: string, formData: FormData): Promise<
 
   await updateItem(id, input);
   revalidatePath('/shopping');
+  revalidatePath('/trips');
 }
 
 export async function deleteItemAction(id: string): Promise<void> {
   await deleteItem(id);
   revalidatePath('/shopping');
+  revalidatePath('/trips');
 }
 
 export async function toggleItemCheckedAction(id: string): Promise<void> {
@@ -64,6 +69,7 @@ export async function toggleItemCheckedAction(id: string): Promise<void> {
 
   await toggleItemChecked(item);
   revalidatePath('/shopping');
+  revalidatePath('/trips');
 }
 
 export async function checkItemPriceAction(id: string): Promise<PriceCheckResult> {

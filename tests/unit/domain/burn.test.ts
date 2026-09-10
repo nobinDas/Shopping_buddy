@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { calculateMonthlyBurn, groupOccurrencesByMonth, type BurnOccurrence } from '@/server/domain/burn';
+import {
+  calculateMonthlyBurn,
+  groupOccurrencesByMonth,
+  type BurnOccurrence,
+} from '@/server/domain/burn';
 
 describe('calculateMonthlyBurn', () => {
   it('returns an empty array for an empty input', () => {

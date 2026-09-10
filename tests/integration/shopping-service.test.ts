@@ -38,7 +38,7 @@ describe('addItem / updateItem / deleteItem', () => {
 
         const item = await addItem(
           list.id,
-          { name: 'Milk, 1gal', quantity: 2, notes: 'organic', store: "Trader Joe's" },
+          { name: 'Milk, 1gal', quantity: 2, notes: 'organic', store: "Trader Joe's", dueAt: null },
           tx,
         );
 
@@ -56,11 +56,15 @@ describe('addItem / updateItem / deleteItem', () => {
     await expect(
       db.transaction(async (tx) => {
         const list = await createTestList(tx);
-        const item = await addItem(list.id, { name: 'Milk', quantity: 1, notes: null, store: null }, tx);
+        const item = await addItem(
+          list.id,
+          { name: 'Milk', quantity: 1, notes: null, store: null, dueAt: null },
+          tx,
+        );
 
         const updated = await updateItem(
           item.id,
-          { name: 'Milk, 1gal', quantity: 3, notes: null, store: 'Costco' },
+          { name: 'Milk, 1gal', quantity: 3, notes: null, store: 'Costco', dueAt: null },
           tx,
         );
 
@@ -76,7 +80,11 @@ describe('addItem / updateItem / deleteItem', () => {
     await expect(
       db.transaction(async (tx) => {
         const list = await createTestList(tx);
-        const item = await addItem(list.id, { name: 'Milk', quantity: 1, notes: null, store: null }, tx);
+        const item = await addItem(
+          list.id,
+          { name: 'Milk', quantity: 1, notes: null, store: null, dueAt: null },
+          tx,
+        );
 
         await deleteItem(item.id, tx);
 
@@ -97,13 +105,38 @@ describe('toggleItemChecked', () => {
     await expect(
       db.transaction(async (tx) => {
         const list = await createTestList(tx);
-        const item = await addItem(list.id, { name: 'Milk', quantity: 1, notes: null, store: null }, tx);
+        const item = await addItem(
+          list.id,
+          { name: 'Milk', quantity: 1, notes: null, store: null, dueAt: null },
+          tx,
+        );
 
         const checked = await toggleItemChecked(item, tx);
         expect(checked.checked).toBe(true);
 
         const unchecked = await toggleItemChecked(checked, tx);
         expect(unchecked.checked).toBe(false);
+
+        tx.rollback();
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('stamps checkedAt on check, clears it on uncheck', async () => {
+    await expect(
+      db.transaction(async (tx) => {
+        const list = await createTestList(tx);
+        const item = await addItem(
+          list.id,
+          { name: 'Milk', quantity: 1, notes: null, store: null, dueAt: null },
+          tx,
+        );
+
+        const checked = await toggleItemChecked(item, tx);
+        expect(checked.checkedAt).not.toBeNull();
+
+        const unchecked = await toggleItemChecked(checked, tx);
+        expect(unchecked.checkedAt).toBeNull();
 
         tx.rollback();
       }),
@@ -116,7 +149,11 @@ describe('checkItemPrice', () => {
     await expect(
       db.transaction(async (tx) => {
         const list = await createTestList(tx);
-        const item = await addItem(list.id, { name: 'Milk, 1gal', quantity: 1, notes: null, store: null }, tx);
+        const item = await addItem(
+          list.id,
+          { name: 'Milk, 1gal', quantity: 1, notes: null, store: null, dueAt: null },
+          tx,
+        );
 
         vi.mocked(serpapi.searchWalmartPrice).mockResolvedValue({
           title: 'Great Value Milk, 1gal',
@@ -151,7 +188,7 @@ describe('checkItemPrice', () => {
         const list = await createTestList(tx);
         const item = await addItem(
           list.id,
-          { name: 'Something very obscure', quantity: 1, notes: null, store: null },
+          { name: 'Something very obscure', quantity: 1, notes: null, store: null, dueAt: null },
           tx,
         );
 
@@ -176,7 +213,11 @@ describe('checkItemPrice', () => {
     await expect(
       db.transaction(async (tx) => {
         const list = await createTestList(tx);
-        const item = await addItem(list.id, { name: 'Milk', quantity: 1, notes: null, store: null }, tx);
+        const item = await addItem(
+          list.id,
+          { name: 'Milk', quantity: 1, notes: null, store: null, dueAt: null },
+          tx,
+        );
 
         vi.mocked(serpapi.searchWalmartPrice).mockRejectedValue(new Error('SerpApi responded 429'));
 

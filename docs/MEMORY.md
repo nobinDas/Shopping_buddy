@@ -25,10 +25,14 @@ OAuth, and incremental sync (`sync_cursor`) — deliberately deferred, see
 below. **Phase 2 (Insurance) is complete** — all 4 checklist items, real
 schema, live-verified. **Phase 3 (Shopping list, single-store price
 check) is complete** — all 5 checklist items, real schema, real SerpApi
-Walmart price lookups, live-verified. Per ADR-010, LLM-touching phases
+Walmart price lookups, live-verified. **Phase 4 (redesigned as a
+continuous route/duration view, ADR-013) is implementation-complete,
+`pnpm verify` green — live verification against the real Google Maps
+Platform APIs is blocked on the user setting up a Google Cloud billing
+account and a `GOOGLE_MAPS_API_KEY`.** Per ADR-010, LLM-touching phases
 (1d, 1e) are deferred to the end of the build; Microsoft OAuth is
-likewise unscheduled. Build order now: Phase 4 next. A mobile-first
-UI/UX redesign (ADR-009) landed across every existing screen earlier.
+likewise unscheduled. A mobile-first UI/UX redesign (ADR-009) landed
+across every existing screen earlier.
 **Last updated:** 2026-09-10
 
 ### Done
@@ -436,18 +440,106 @@ all 5 checklist items:
   needed, confirmed via `execute_sql` that all three tables are empty
   afterward
 
+Phase 4 — Continuous route and duration view (2026-09-10), redesigned
+mid-planning from the original deadline-driven/leave-by-time scope — see
+ADR-013 for the full reasoning:
+
+- `shoppingListItems` gained `dueAt` (optional per-item deadline, date
+  only) and `checkedAt` (stamped on check, cleared on uncheck — drives
+  the "stays visible through the day it was checked, then hides" rule).
+  `preferredStores` gained `address` (plain text, now `.notNull()`),
+  `placeId`, `openingHoursText`, `openingHoursPeriods` (Places-resolved,
+  once, at store-add time). New single-row `userSettings` table holds the
+  saved home address. **No `trips` table at all** — there is no discrete
+  trip entity; `/trips` is computed live from outstanding items on every
+  load (migration `0006`)
+- Three new pure domain modules: `domain/shopping-urgency.ts`
+  (urgency sort, per-store soonest-due-date, overdue check),
+  `domain/shopping-visibility.ts` (the midnight-hide rule for checked
+  items), `domain/store-hours.ts` (open-now check from normalized weekly
+  periods), `domain/shopping-duration.ts` (a small, documented item-count
+  → minutes estimate)
+- `providers/google-maps.ts` (new): Places `searchText` for hours,
+  Routes `computeRoutes` with `optimizeWaypointOrder` for the shortest
+  visiting order — requested as a round trip (origin = destination = home
+  address) so every stop can be freely reordered rather than one being
+  pinned as "last," with the final return-to-home leg sliced off before
+  returning, since the UI never shows a "drive home" duration. Neither
+  function renders anything map-shaped — both return plain numbers
+- `services/route.service.ts` (new, no DB write — a typed on-demand
+  computation), `services/stores.service.ts` (new — inserts a store, then
+  resolves its hours via Places; a miss isn't fatal), `shopping.service.ts`
+  extended (`dueAt` on add/update, `checkedAt` stamped in
+  `toggleItemChecked`)
+- Real UI: new `/settings` screen (home address), `/stores` gained an
+  address field + shows resolved hours per store, `/shopping`'s shared
+  `EditPanel` gained an optional due-date field (now exported and reused,
+  not duplicated, on `/trips`), and `/trips` rewritten from the
+  Phase 1.5 mock into `components/trips/OutstandingStops.tsx` — every
+  outstanding item across every list, consolidated and grouped by store,
+  sorted by urgency, with click-to-reveal due-date badges, an overdue
+  flag (tapping it opens the edit panel directly), an open-now/closed-now
+  chip per store, an on-demand "Plan route" button, and drive-time
+  dividers + a total-duration summary once a route is planned
+- `pnpm verify` green: 149 unit (23 new), 56 integration (9 new)
+- **A real client/server boundary bug found live, not by review**: the
+  first version of `components/trips/OutstandingStops.tsx` (a Client
+  Component) imported a helper directly from `db/queries/stores.ts`,
+  pulling the `postgres` driver into the client bundle — Next.js's build
+  failed outright with `Module not found: Can't resolve 'fs'` the moment
+  `/trips` was opened in the browser. Fixed by moving the pure
+  jsonb-reading helper (`readOpeningPeriods`) into `domain/store-hours.ts`
+  instead, matching the same "client components never import
+  `src/server/db` or `src/server/services`" boundary this session already
+  fixed twice before (Phase 1c's token-leak bug, Phase 2's
+  `computeNextBillingDate` import)
+- **Live-verified everything reachable without the Google Maps key**: set
+  a real home address (persisted, confirmed via Postgres), added a real
+  store with a real address (hours correctly left null with a graceful
+  "Hours not found" — the `resolvePlaceHours` failure path, since no key
+  is configured yet), added two shopping items with due dates (one
+  deliberately in the past), confirmed `/trips` groups by store, sorts by
+  urgency, click-to-reveal badges show the right dates (store-level shows
+  only the soonest date, no item names), the overdue flag renders and
+  opens the edit panel on click, rescheduling clears the flag and
+  re-sorts correctly, checking an item off drops it from `/trips`
+  immediately while it stays struck-through on `/shopping` (confirming
+  the midnight-hide design without needing to wait for midnight), and
+  "Plan route" fails gracefully with `GOOGLE_MAPS_API_KEY is not set.`
+  shown inline rather than crashing — confirming the whole UI→action→
+  service→provider error path end to end even without a real key
+- Two of the four test rows didn't clear through flaky UI clicks (the
+  REMOVE/delete button occasionally not registering on the first click,
+  same intermittent behavior seen in Phase 3); cleaned up the remaining
+  "Milk, 1gal" item and "Trader Joe's" store directly via SQL, **with
+  explicit `🛑 DELETE APPROVAL` first**, per `CLAUDE.md`'s rule. Left the
+  placeholder home address in place — a single settings row the user will
+  naturally overwrite with their real address, not something needing
+  deletion
+- `.env.example` gained `GOOGLE_MAPS_API_KEY` — and, while there, fixed a
+  real pre-existing gap: Phase 3's `SERPAPI_API_KEY` was in `.env.local`
+  but was never added to `.env.example`, so a fresh clone had no record
+  it existed
+- **Live verification against the real Google Maps Platform APIs (actual
+  Places hours lookups, actual Routes drive-time/order calls) is still
+  blocked** on the user setting up a Google Cloud billing account and a
+  `GOOGLE_MAPS_API_KEY` — everything else about the phase is verified
+- Committed (`<pending>`)
+
 ### In progress
 
-Nothing mid-task. Phase 3 above is complete, verified live, green, and
-not yet committed.
+Nothing mid-task. Phase 4 above is fully implemented, live-verified
+everywhere reachable without a real Google Maps key, green, and
+committed. The one open item is the user's own Google Cloud billing/
+API-key setup — once `GOOGLE_MAPS_API_KEY` exists, a follow-up pass
+should verify a real Places hours lookup and a real Routes call, since
+those two external calls are the only parts of this phase not yet
+exercised against the real API.
 
 ### Next
 
-**Phase 4 (Route and deadline planner)** — per ADR-010's build order
-(Phase 4 → Phase 5 → 1d → 1e). The trips screen already exists with mock
-data from the mobile redesign; this phase replaces it with a real mapping
-API integration for multi-stop routing and leave-by-time computation. See
-`PHASES.md`.
+After Phase 4's live verification and commit: **Phase 5 (Price timing and
+stock check)**, per ADR-010's build order (Phase 5 → 1d → 1e).
 
 ### Blocked
 
@@ -504,6 +596,48 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-10 — Phase 4 redesigned mid-planning and built: continuous route/duration view
+**Did:** Started Phase 4 against the original "deadline-driven trip,
+leave-by time" scope. During planning, walked through a real gap with the
+user (a two-store trip where only one gets visited has no clear next step
+under that model) and the user redirected the whole phase: due dates move
+to individual shopping items, `/trips` becomes a continuous live view
+with no discrete trip entity, and the leave-by clock time is dropped
+entirely in favor of plain drive-time/shopping-duration numbers — see
+ADR-013 for the full reasoning and consequences. Implemented the
+redesigned scope: `shoppingListItems.dueAt`/`checkedAt`,
+`preferredStores.address`/`placeId`/`openingHoursText`/
+`openingHoursPeriods`, a new single-row `userSettings` table (migration
+`0006`), four new pure domain modules, `providers/google-maps.ts`
+(Places hours + Routes optimized-order, both wrapped in typed results,
+neither ever rendering a map), `services/route.service.ts` +
+`services/stores.service.ts`, a new `/settings` screen, and
+`/trips` rewritten into `components/trips/OutstandingStops.tsx`. `pnpm
+verify` green (149 unit, 56 integration). Found and fixed a real
+client/server boundary bug live (not by review): the first
+`OutstandingStops.tsx` imported a query-layer helper directly, pulling
+`postgres` into the client bundle and breaking the build the moment
+`/trips` loaded — fixed by moving the pure helper into
+`domain/store-hours.ts`. Live-verified everything reachable without a
+real Google Maps key: home address, store add with a graceful
+hours-unresolved fallback, due-date urgency sort/badges/overdue-flag/
+reschedule, the midnight-hide checked-item rule, and "Plan route"'s
+graceful `GOOGLE_MAPS_API_KEY is not set.` error path. Also fixed a
+pre-existing gap found along the way: Phase 3's `SERPAPI_API_KEY` was
+never added to `.env.example`.
+**Decided:** ADR-013 — the full pivot from discrete deadline-driven trips
+to a continuous, item-level-due-date view. Not a unilateral call: walked
+through the design forks with the user via `AskUserQuestion` (route
+output as plain durations vs. a leave-by clock; checked-item cleanup as
+view-only vs. an actual delete) before writing the final plan.
+**Next:** Committed. Live verification of the actual Google Places/Routes
+API calls is blocked on the user setting up a Google Cloud billing
+account and a `GOOGLE_MAPS_API_KEY` — flagged clearly, matching Phase
+1c/3's credential hand-offs. Once that exists: a short follow-up pass to
+verify a real hours lookup and a real route, then Phase 5.
 
 ---
 

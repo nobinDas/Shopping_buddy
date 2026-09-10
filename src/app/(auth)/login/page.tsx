@@ -52,7 +52,9 @@ export default function LoginPage() {
             {isPending ? 'Sending…' : 'Send magic link'}
           </button>
           {status === 'error' ? (
-            <p className="mt-1 text-sm text-flag">Could not send link. Check the email and try again.</p>
+            <p className="mt-1 text-sm text-flag">
+              Could not send link. Check the email and try again.
+            </p>
           ) : (
             <p className="mt-1 text-xs text-ink-muted">
               No password. Sign-in links expire after 15 minutes.
