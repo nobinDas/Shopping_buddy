@@ -62,10 +62,13 @@ model, not an independent choice.
 hover-tooltip interaction are gone — anyone wanting that exact desktop
 ribbon back would need to rebuild it; the new `BurnMonths.tsx` replaces
 it entirely rather than living alongside it. `subscription.service.ts`
-has no "restore/unarchive" function, so the archived-subscription detail
-view shows a static "Archived" label rather than the mock's Restore
+had no "restore/unarchive" function, so the archived-subscription detail
+view showed a static "Archived" label rather than the mock's Restore
 button — implementing real unarchive was out of this pass's UI-only
-scope and is now a visible gap between the design and the build. The
+scope. **Closed same-day**: `restoreSubscription` added to the service,
+wired to a real `restoreSubscriptionAction`, detail page now has a
+working Restore button — see `docs/MEMORY.md`'s 2026-09-09 "Restore/
+unarchive backend added" entry. The
 mock's per-occurrence "this is the exact month a price change lands"
 row-highlighting was dropped for real dashboard data: the app has no
 concept of a scheduled *future* price change (only historical

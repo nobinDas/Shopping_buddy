@@ -8,6 +8,7 @@ import {
   createSubscription,
   updateSubscription,
   archiveSubscription,
+  restoreSubscription,
 } from '@/server/services/subscription.service';
 
 export interface SubscriptionFormState {
@@ -82,6 +83,12 @@ export async function updateSubscriptionAction(
 
 export async function archiveSubscriptionAction(id: string): Promise<void> {
   await archiveSubscription(id);
+  revalidatePath('/subscriptions');
+  revalidatePath('/');
+}
+
+export async function restoreSubscriptionAction(id: string): Promise<void> {
+  await restoreSubscription(id);
   revalidatePath('/subscriptions');
   revalidatePath('/');
 }

@@ -6,6 +6,7 @@ import {
   createSubscription,
   updateSubscription,
   archiveSubscription,
+  restoreSubscription,
 } from '@/server/services/subscription.service';
 import { buildSubscription } from '../fixtures/builders';
 
@@ -134,6 +135,44 @@ describe('archiveSubscription', () => {
 
         expect(archived.status).toBe('archived');
         expect(archived.id).toBe(created.id);
+
+        tx.rollback();
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+describe('restoreSubscription', () => {
+  it('sets status back to active', async () => {
+    await expect(
+      db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(subscriptions)
+          .values(buildSubscription({ status: 'archived' }))
+          .returning();
+        if (!created) {
+          throw new Error('Insert did not return a row');
+        }
+
+        const restored = await restoreSubscription(created.id, tx);
+
+        expect(restored.status).toBe('active');
+        expect(restored.id).toBe(created.id);
+
+        tx.rollback();
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('round-trips through archive then restore', async () => {
+    await expect(
+      db.transaction(async (tx) => {
+        const created = await createSubscription(validInput, tx);
+
+        await archiveSubscription(created.id, tx);
+        const restored = await restoreSubscription(created.id, tx);
+
+        expect(restored.status).toBe('active');
 
         tx.rollback();
       }),

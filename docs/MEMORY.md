@@ -244,11 +244,12 @@ UI/UX only:
   and sign-out → login redirect; test data cleaned up from Postgres
   afterward. `pnpm verify` green throughout (typecheck, lint, 101 unit —
   93 + 8 new for `groupOccurrencesByMonth` — 11 integration)
-- See ADR-009 in `DECISIONS.md` for two real gaps this pass surfaced but
-  didn't fix, deliberately out of UI-only scope: no unarchive/restore
-  action exists in `subscription.service.ts` (the mock's Restore button
-  has no backend to call), and the mock's per-occurrence "price changes
-  here" row highlight was dropped for real data — the app has no concept
+- See ADR-009 in `DECISIONS.md` for a real gap this pass surfaced but left
+  deliberately unfixed as out of UI-only scope: no unarchive/restore
+  action existed in `subscription.service.ts` (the mock's Restore button
+  had no backend to call) — **closed in a same-day follow-up**, see the
+  entry immediately below. The mock's per-occurrence "price changes here"
+  row highlight is still dropped for real data — the app has no concept
   of a scheduled future price change to highlight
 
 ### In progress
@@ -291,11 +292,6 @@ its rationale and deleting it here.
   diverge for annual renewals near month boundaries.
 - Sync frequency: daily is the assumption. Is it enough to catch a trial
   conversion before it bills?
-- Restore/unarchive: `subscription.service.ts` only archives, one-way. The
-  mobile design's detail screen has a Restore action with nothing to call.
-  Worth a small real fix whenever Phase 1a-adjacent work is next touched,
-  or deliberately deferred with a reason recorded here if not.
-
 ---
 
 ## How to update this file
@@ -323,6 +319,26 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-09 — Restore/unarchive backend added, closing ADR-009's gap
+**Did:** Added `restoreSubscription` to `subscription.service.ts`
+(symmetric to `archiveSubscription`, sets `status` back to `'active'`),
+`restoreSubscriptionAction` in `subscriptions/actions.ts`, and wired the
+subscription detail page's archived-state button to it — it previously
+rendered a static "Archived" label with no action behind it. Added two
+integration tests (`restoreSubscription` sets status to active; a full
+archive-then-restore round trip). `pnpm verify` green (101 unit, 13
+integration — up from 11). Verified directly against real Postgres (the
+same active→archived→active transition the service now performs) since
+this session's browser was signed out and re-authenticating needs a real
+magic-link email click; the integration tests already exercise the actual
+service functions end to end against a real transaction, so this was
+confirmatory, not a substitute.
+**Decided:** Nothing new scoping-wise — this was the exact follow-up
+ADR-009 already called out as deferred, done as soon as asked for.
+**Next:** Phase 1c — real Google/Microsoft OAuth (unchanged).
 
 ---
 

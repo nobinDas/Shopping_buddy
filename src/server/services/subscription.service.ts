@@ -149,3 +149,19 @@ export async function archiveSubscription(
 ): Promise<SubscriptionRow> {
   return updateSubscriptionRow(id, { status: 'archived' }, client);
 }
+
+/**
+ * Restores an archived subscription to active. The inverse of
+ * `archiveSubscription` — sets status back to 'active', the same value
+ * `createSubscription` gives every new subscription. Doesn't touch
+ * `next_billing_date`: it's recomputed from `anchor_date` + `cycle` at
+ * read time everywhere it's shown (see the dashboard and detail pages),
+ * never trusted from the stored column, so a stale value from whenever
+ * the subscription was archived is harmless here.
+ */
+export async function restoreSubscription(
+  id: string,
+  client: DbClient = db,
+): Promise<SubscriptionRow> {
+  return updateSubscriptionRow(id, { status: 'active' }, client);
+}

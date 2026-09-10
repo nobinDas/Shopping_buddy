@@ -8,7 +8,7 @@ import {
 import { computeNextBillingDate } from '@/server/domain/billing-cycle';
 import { formatMoney } from '@/lib/money';
 import { formatDate } from '@/lib/dates';
-import { archiveSubscriptionAction } from '../actions';
+import { archiveSubscriptionAction, restoreSubscriptionAction } from '../actions';
 
 interface SubscriptionDetailPageProps {
   params: Promise<{ id: string }>;
@@ -145,9 +145,14 @@ export default async function SubscriptionDetailPage({ params }: SubscriptionDet
           Edit
         </Link>
         {archived ? (
-          <span className="flex-1 border border-control-border py-3 text-center font-sans text-sm font-medium text-ink-muted">
-            Archived
-          </span>
+          <form action={restoreSubscriptionAction.bind(null, subscription.id)} className="flex-1">
+            <button
+              type="submit"
+              className="w-full border border-control-border py-3 font-sans text-sm font-medium text-ink"
+            >
+              Restore
+            </button>
+          </form>
         ) : (
           <form action={archiveSubscriptionAction.bind(null, subscription.id)} className="flex-1">
             <button
