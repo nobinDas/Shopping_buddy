@@ -57,10 +57,10 @@ to be settled before anything writes to it automatically.
 
 ### 1c — Multi-inbox connection
 
-- [ ] Google OAuth, read-only scope, refresh-token storage encrypted at rest
+- [x] Google OAuth, read-only scope, refresh-token storage encrypted at rest
 - [ ] Microsoft OAuth, read-only scope
-- [ ] Connect, list, and disconnect multiple accounts
-- [ ] Token refresh handling and a clear reconnect path when refresh fails
+- [x] Connect, list, and disconnect multiple accounts
+- [x] Token refresh handling and a clear reconnect path when refresh fails
 - [ ] Incremental sync with a per-account cursor
 
 ### 1d — Detection

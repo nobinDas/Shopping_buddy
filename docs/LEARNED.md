@@ -50,6 +50,40 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-09-10 — A Next.js dev-console warning caught a real token leak, not a cosmetic one
+**Context:** Wiring the real Google OAuth connect flow (Phase 1c stage
+2). `accounts/page.tsx` (a Server Component) fetched every connected
+account with `getAllEmailAccounts()` and passed the full rows straight
+into `<AccountsList accounts={accounts} />`, a Client Component. Live
+testing surfaced a console error: "Binary data with a toJSON method...
+is serialized through toJSON instead of as binary," pointing at
+`accessTokenEnc`/`refreshTokenEnc` — the encrypted OAuth token columns.
+**What I thought:** This read as a Next.js RSC serialization nitpick —
+Buffers don't cross the server/client boundary cleanly, fix the type,
+move on.
+**What was actually true:** The real problem wasn't *how* the Buffer
+serialized, it was that it was crossing that boundary **at all**. Every
+row's `accessTokenEnc`/`refreshTokenEnc` — AES-256-GCM ciphertext, but
+still the encrypted tokens — was being embedded in the RSC payload sent
+to the browser. That's exactly what `docs/SECURITY.md` already
+prohibits: "Tokens never leave `src/server/`. Never returned from an API
+route, never in a Server Component's serialised props." Encryption at
+rest protects the database; it does nothing once the value is shipped to
+a client bundle regardless. Fixed by adding `getAllEmailAccounts`'s
+column-level `select({...})` (excluding the two token columns entirely,
+so there's nothing to forget to strip later) and a narrower
+`EmailAccountSummary` type for anything a Client Component receives.
+**Why it matters:** a console warning framed as a type/serialization
+issue can be the visible symptom of a much worse underlying bug — the
+framework was actually complaining about the exact shape of the leak,
+not an unrelated technicality. Worth treating any "this value can't
+serialize cleanly" warning on a table with sensitive columns as a
+security question first, a type-annotation question second. Also worth
+noting: `docs/SECURITY.md`'s rule existed and was read earlier in this
+same session before this code was written — the rule alone wasn't
+enough, only live testing caught the violation in practice.
+**Portfolio-worthy:** yes.
+
 ### 2026-09-10 — `server-only` throws under Vitest unless aliased
 **Context:** Writing unit tests for `providers/crypto.ts` (Phase 1c —
 AES-256-GCM token encryption). The file opens with `import 'server-only'`,

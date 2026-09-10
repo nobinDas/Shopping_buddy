@@ -18,12 +18,13 @@ session — a session that only answered questions changes nothing.
 ## Current state
 
 **Phase:** 1 — Subscription tracker MVP. Phase 0, 1a, 1b, and 1.5 are all
-complete. **Phase 1c is in progress**: the `email_accounts` schema, token
-encryption, and query layer are real and tested; the real Google OAuth
-connect flow and the accounts screen's real wiring are next, blocked on
-the user provisioning Google Cloud OAuth credentials. A mobile-first
-UI/UX redesign (ADR-009) landed across every existing screen earlier —
-UI/UX only, no backend/schema changes at the time.
+complete. **Phase 1c is mostly done**: real Google OAuth connect/
+disconnect/refresh is live and verified against a real Google account —
+3 of 5 checklist items checked off in `PHASES.md`. Remaining: Microsoft
+OAuth, and incremental sync (`sync_cursor`) — the latter is really where
+Phase 1d begins. A mobile-first UI/UX redesign (ADR-009) landed across
+every existing screen earlier — UI/UX only, no backend/schema changes at
+the time.
 **Last updated:** 2026-09-10
 
 ### Done
@@ -284,31 +285,73 @@ OAuth yet:
   account needed for that one, unlike the Google credentials)
 - `pnpm verify` green throughout (109 unit — 101 + 8 new — 20
   integration — 13 + 7 new)
-- Not yet committed
+- Committed (`b1e82a8`)
+
+Phase 1c, stage 2 (2026-09-10) — the real Google OAuth connect flow:
+
+- User set up a Google Cloud OAuth client (Testing mode, themselves as
+  test user) with scopes `gmail.readonly` + `openid`/`email` — the
+  latter two decided in-session: without them the app has no way to know
+  *which* address a connection belongs to, which would make the accounts
+  list unable to tell two connections apart. Neither grants extra Gmail
+  access
+- `providers/google.ts` (new): `buildAuthorizationUrl` (pure, unit
+  tested — right scopes, `access_type=offline` + `prompt=consent` so a
+  refresh token reliably comes back), `exchangeCodeForTokens`,
+  `refreshAccessToken`, `revokeToken`, `getUserInfo` — one function per
+  Google endpoint, matching the "one adapter per external system" rule
+- `db/queries/email-accounts.ts` gained `getEmailAccountByProviderAndEmail`
+  so connect and reconnect share one find-or-update code path rather than
+  two, and (see security fix below) `getAllEmailAccounts` now
+  column-selects everything except the two token buffers
+- `services/email-account.service.ts` (new): `connectGoogleAccount`,
+  `disconnectAccount` (revoke then delete, in that order —
+  `docs/SECURITY.md`'s rule), `refreshAccountToken` (moves the account to
+  `needs_reauth` on failure rather than throwing). 5 new integration
+  tests against real Postgres with `providers/google.ts` mocked at the
+  boundary, per `docs/TESTING.md`
+- `api/auth/[provider]/start` and `.../callback` route handlers — 404 for
+  any provider but `google`, CSRF `state` via a short-lived httpOnly
+  cookie
+- Accounts screen (`accounts/page.tsx`) converted from Phase 1.5's mock
+  `'use client'` array to a real async Server Component + a new
+  `components/accounts/AccountsList.tsx` client component
+- **A real security bug found live, not by review**: the first version
+  passed full `EmailAccountRow`s (including the encrypted token columns)
+  from the server component into the client component — a Next.js
+  console warning about Buffer serialization was the surface symptom of
+  `docs/SECURITY.md`'s "tokens never leave `src/server/`" rule being
+  violated. Fixed by column-selecting the token fields out at the query
+  level (`EmailAccountSummary` type) rather than just satisfying the
+  type checker. Full writeup: `docs/LEARNED.md`, 2026-09-10, marked
+  portfolio-worthy
+- Verified live end to end with a real Google account: connected
+  (real consent screen, landed back on `/accounts` showing the real
+  email), disconnected (confirmed the row deleted from Postgres via
+  direct query, and the user independently confirmed at
+  myaccount.google.com/permissions that Google-side access was actually
+  revoked, not just locally deleted)
+- `pnpm verify` green (115 unit, 25 integration). Not yet committed
 
 ### In progress
 
-Phase 1c, stage 1 above is complete and verified but **not committed**.
-Stage 2 (real OAuth connect/callback routes, accounts screen wired to
-real data, Microsoft, actual sync) is blocked on the user setting up a
-Google Cloud OAuth client — exact steps are in the approved plan and were
-given to the user in chat.
+Nothing mid-task. Phase 1c stage 2 above is complete, verified live, and
+green — just needs committing.
 
 ### Next
 
-Once `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` exist in `.env.local`:
-`src/app/api/auth/google/start` + `.../callback` routes (the folder is
-already scaffolded as `.gitkeep` per `docs/ARCHITECTURE.md`), a
-`services/email-account.service.ts` for connect/disconnect/reconnect
-(disconnect must revoke with Google, not just delete the local row), and
-swap the accounts screen from its Phase 1.5 mock state to real queries.
-Then Microsoft OAuth, then incremental sync. See `PHASES.md`.
+Commit stage 2. Then, in no particular order: Microsoft OAuth (mirrors
+the Google flow, needs an Entra ID app registration), or skip straight to
+Phase 1d (detection) since Google alone is enough to prove the pipeline —
+worth a quick decision with the user rather than assuming. Incremental
+sync (`sync_cursor`) is really Phase 1d's first step, not a
+`refreshAccountToken`-style addition to 1c.
 
 ### Blocked
 
-Phase 1c stage 2 is blocked on the user provisioning a Google Cloud OAuth
-client (console.cloud.google.com — consent screen + credentials). Not
-something this session can do.
+Nothing. Microsoft OAuth would need the user to register an Entra ID app
+first (same shape of external dependency Google was), but that's not
+scheduled yet, not an active blocker.
 
 ---
 
@@ -359,6 +402,34 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-10 — Phase 1c, stage 2: real Google OAuth connect flow, live-verified
+**Did:** Built the real thing stage 1 was waiting on: `providers/google.ts`
+(OAuth endpoints), `services/email-account.service.ts` (connect/disconnect/
+refresh), the `api/auth/[provider]/start|callback` routes, and converted
+the accounts screen from Phase 1.5 mock state to real data. Decided with
+the user in-session to request `openid`/`email` scope alongside
+`gmail.readonly` so the app can identify which address it connected.
+Found and fixed a real security bug via live testing, not review: the
+first version leaked the encrypted token columns into a Server
+Component's props to a Client Component — see `docs/LEARNED.md`. Verified
+live end to end against the user's real Google account: connected
+through the real consent screen, disconnected, confirmed via direct
+Postgres query the row was really gone and via the user checking
+myaccount.google.com/permissions that Google-side access was actually
+revoked. `pnpm verify` green (115 unit, 25 integration — 6 + 5 new this
+stage). Checked off 3 of `PHASES.md`'s 5 items for 1c. Full detail in
+Current State above. Not yet committed.
+**Decided:** `openid`/`email` scope addition (identity only, no extra
+Gmail access) — talked through with the user rather than assumed, since
+it meant them adding one more scope in Google Cloud Console. Connect and
+reconnect share one code path (find-or-update by provider+email) rather
+than two, to avoid a separate reconnect flow with its own edge cases.
+**Next:** Commit. Then decide with the user: Microsoft OAuth next, or
+skip to Phase 1d (detection) since Google alone already proves the
+connect pipeline works.
 
 ---
 

@@ -1,13 +1,41 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db, type DbClient } from '@/server/db';
 import { emailAccounts } from '@/server/db/schema';
 
 export type EmailAccountRow = typeof emailAccounts.$inferSelect;
 export type NewEmailAccount = typeof emailAccounts.$inferInsert;
 
-/** Fetches every connected inbox, regardless of status. */
-export async function getAllEmailAccounts(client: DbClient = db): Promise<EmailAccountRow[]> {
-  return client.select().from(emailAccounts);
+/**
+ * The subset of a connected account's columns safe to render — every
+ * field except the two encrypted-token buffers. Used for anything that
+ * crosses a Server → Client Component boundary: see docs/SECURITY.md,
+ * "Tokens never leave src/server/. Never returned from an API route,
+ * never in a Server Component's serialised props." Selecting these
+ * columns explicitly at the query level means a future caller can't
+ * accidentally leak the ciphertext by forgetting to strip it downstream.
+ */
+export type EmailAccountSummary = Omit<EmailAccountRow, 'accessTokenEnc' | 'refreshTokenEnc'>;
+
+/**
+ * Fetches every connected inbox, regardless of status, for anything that
+ * only needs to render the list — never returns the token columns. Use
+ * getEmailAccountById (or a full select) when the caller actually needs
+ * to decrypt a token, e.g. a services/ function refreshing or revoking.
+ */
+export async function getAllEmailAccounts(client: DbClient = db): Promise<EmailAccountSummary[]> {
+  return client
+    .select({
+      id: emailAccounts.id,
+      provider: emailAccounts.provider,
+      emailAddress: emailAccounts.emailAddress,
+      tokenExpiresAt: emailAccounts.tokenExpiresAt,
+      syncCursor: emailAccounts.syncCursor,
+      lastSyncedAt: emailAccounts.lastSyncedAt,
+      status: emailAccounts.status,
+      createdAt: emailAccounts.createdAt,
+      updatedAt: emailAccounts.updatedAt,
+    })
+    .from(emailAccounts);
 }
 
 export async function getEmailAccountById(
@@ -15,6 +43,24 @@ export async function getEmailAccountById(
   client: DbClient = db,
 ): Promise<EmailAccountRow | undefined> {
   const [row] = await client.select().from(emailAccounts).where(eq(emailAccounts.id, id));
+  return row;
+}
+
+/**
+ * Finds an account by (provider, emailAddress) — lets the connect flow
+ * find-or-update instead of inserting a duplicate row when the same
+ * address is connected again (a genuine reconnect, or clicking Connect
+ * twice). No separate reconnect code path exists because of this.
+ */
+export async function getEmailAccountByProviderAndEmail(
+  provider: EmailAccountRow['provider'],
+  emailAddress: string,
+  client: DbClient = db,
+): Promise<EmailAccountRow | undefined> {
+  const [row] = await client
+    .select()
+    .from(emailAccounts)
+    .where(and(eq(emailAccounts.provider, provider), eq(emailAccounts.emailAddress, emailAddress)));
   return row;
 }
 
