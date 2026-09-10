@@ -96,6 +96,24 @@ confirmed by a real email; a real price increase detected and surfaced; a
 subscription discovered that was never manually entered; no duplicates across
 inboxes; reconciliation logic at high unit-test coverage.
 
+**Idea captured for this phase, not yet scoped — shopping list price agent
+(2026-09-10):** Once the structured AI agent from 1d/1e exists, extend it to
+Phase 3's shopping list: when the user writes just an item name (no price),
+the agent searches the web (SerpApi to start, per ADR-012 — swap later if a
+better source turns up) for the best/most affordable match, writes a note
+under the item naming the specific product/company it found, and updates the
+item's price field in the same spot Phase 3's manual "check price" already
+uses — **whether or not the user typed in a price themselves**, and
+overwriting it whenever the agent's finding doesn't match what's there. This
+is agent-initiated (on item creation/edit), distinct from Phase 3's existing
+one-click manual price check. Needs real design before building, not just
+wiring up: a rate-limit-aware trigger strategy (same 250/month SerpApi
+concern that made Phase 3's checks manual-only), a `reasoning` record per
+CLAUDE.md's "no silent recommendations" rule, and likely a new
+`item_price_history.source` value (e.g. `'agent'`) distinct from the existing
+`'manual'`/`'walmart'` so an agent-written price stays distinguishable from a
+user-triggered one. Revisit when 1d/1e are actually being built.
+
 ---
 
 ## Phase 1.5 — Frontend design pass
