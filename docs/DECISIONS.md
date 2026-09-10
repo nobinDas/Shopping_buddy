@@ -27,6 +27,45 @@ not actually examined.
 
 ---
 
+## ADR-010 — LLM-touching phases (1d, 1e) deferred to the end of the build
+
+**Date:** 2026-09-10
+**Status:** accepted
+**Context:** Phase 1c stage 2 (real Google OAuth) just landed and was
+verified live. The originally scoped order (`PHASES.md`, as written) puts
+1d (detection — the first phase that calls the Anthropic API) and 1e
+(reconciliation) immediately next, before Phases 2–5. The user wants
+every phase that doesn't touch an LLM built and real first, and wants the
+eventual AI integration to be a deliberately designed, structured piece
+of the system — not, in the user's words, "randomly just feed anything
+to llm and let it work as it wishes" — built once, once every other
+phase already exists as real, working software it can sit on top of.
+**Decision:** Reorder the *build* sequence (not the phase numbering
+itself) to: 1c (done for Google) → Phase 2 → Phase 3 → Phase 4 → Phase 5
+→ 1d → 1e. 1d and 1e move together, since 1e has nothing to reconcile
+without 1d's `detected_signals` output — deferring one without the other
+isn't meaningful. Phases 2–5 keep their already-documented internal
+order and dependencies (Phase 4 needs Phase 3's shopping lists, Phase 5
+needs price history Phase 3 has been accumulating).
+**Consequences:** The dashboard's Review queue stays mock data for
+longer than originally planned — it won't show a real detected signal
+until 1d and 1e are both built, now near the end of Phase 1's overall
+timeline rather than the middle. The upside is real: by the time the LLM
+integration is designed, every other data model, UI pattern, and
+provider-adapter convention in the app will already be settled and
+proven, so the detection/classification design isn't guessing at
+conventions that don't exist yet — and the "structured, not
+freeform-prompted" AI design the user wants gets designed once, with the
+full shape of the app already known, rather than retrofitted.
+**Alternatives considered:** Keeping the original order (1d/1e right
+after 1c) — rejected per the user's explicit preference, not a technical
+objection to that order. Splitting 1d and 1e apart (build 1d's detection
+pipeline now, defer only 1e) — rejected because detected signals with no
+reconciliation UI to resolve them would be dead weight sitting in a
+table, unverifiable as "working" until 1e exists to surface them.
+
+---
+
 ## ADR-009 — Mobile-first redesign, persistent bottom-nav shell, "More" IA
 
 **Date:** 2026-09-09

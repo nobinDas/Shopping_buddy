@@ -6,6 +6,15 @@ interesting.
 
 Progress lives here as checkboxes. `MEMORY.md` holds the narrative state.
 
+**Build order deliberately differs from the numbering below, as of
+2026-09-10 (see ADR-010 in `DECISIONS.md`).** 1d and 1e — the two phases
+that touch an LLM — are built last, together, once every other phase is
+real. Actual order: 1a → 1b → 1.5 → 1c (Google done; Microsoft optional) →
+**Phase 2 → Phase 3 → Phase 4 → Phase 5 → 1d → 1e**. The numbering stays
+as originally scoped (1d/1e are conceptually still "Phase 1," and Phase
+2–5 still depend on each other in the order already documented below —
+this only moves the LLM-touching pair to the end of the whole queue).
+
 ---
 
 ## Phase 0 — Foundation

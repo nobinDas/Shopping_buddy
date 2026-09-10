@@ -340,12 +340,12 @@ green — just needs committing.
 
 ### Next
 
-Commit stage 2. Then, in no particular order: Microsoft OAuth (mirrors
-the Google flow, needs an Entra ID app registration), or skip straight to
-Phase 1d (detection) since Google alone is enough to prove the pipeline —
-worth a quick decision with the user rather than assuming. Incremental
-sync (`sync_cursor`) is really Phase 1d's first step, not a
-`refreshAccountToken`-style addition to 1c.
+**Phase 2 (Insurance)** — per ADR-010, build order now goes Phase 2 →
+Phase 3 → Phase 4 → Phase 5 → 1d → 1e, deferring both LLM-touching
+phases to the end so they're designed once, deliberately, against an
+app that's otherwise fully real rather than retrofitted mid-build.
+Microsoft OAuth (the last unchecked 1c item) is optional/unscheduled,
+not blocking anything. See `PHASES.md`'s build-order note at the top.
 
 ### Blocked
 
