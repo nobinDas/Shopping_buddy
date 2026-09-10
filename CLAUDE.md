@@ -25,6 +25,15 @@ At the start of a session that will change code, read `docs/MEMORY.md` first.
   Redact in errors too. Rules and threat model: `docs/SECURITY.md`.
 - **Every automated financial suggestion writes a `reasoning` record.** No silent
   recommendations.
+- **Never delete database data without explicit, specific permission first —
+  in every mode (auto, manual, plan-approved, or otherwise), no exceptions.**
+  Scope: rows/records in the database (subscriptions, price history, any
+  table's data) and migrations that drop data — not source files or code
+  changes, which are covered by normal git/plan-approval workflow as usual.
+  A general instruction like "clean this up" is never permission to delete
+  specific rows — name exactly what would be deleted and get a clear yes
+  first. When asking, prefix the question with `🛑 DELETE APPROVAL —` so it
+  is never confused with an ordinary permission prompt.
 
 ## Commands
 
