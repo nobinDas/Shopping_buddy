@@ -1,8 +1,14 @@
-import type { subscriptions, priceHistory, emailAccounts } from '@/server/db/schema';
+import type {
+  subscriptions,
+  priceHistory,
+  emailAccounts,
+  insurancePolicies,
+} from '@/server/db/schema';
 
 type NewSubscription = typeof subscriptions.$inferInsert;
 type NewPriceHistory = typeof priceHistory.$inferInsert;
 type NewEmailAccount = typeof emailAccounts.$inferInsert;
+type NewPolicy = typeof insurancePolicies.$inferInsert;
 
 /**
  * Builds a valid `subscriptions` insert row with sensible defaults,
@@ -55,6 +61,25 @@ export function buildEmailAccount(overrides: Partial<NewEmailAccount> = {}): New
     accessTokenEnc: Buffer.from('test-access-token-ciphertext'),
     refreshTokenEnc: Buffer.from('test-refresh-token-ciphertext'),
     tokenExpiresAt: new Date('2026-01-01T00:00:00Z'),
+    ...overrides,
+  };
+}
+
+/**
+ * Builds a valid `insurance_policies` insert row. Reuses cycleEnum, same
+ * as subscriptions — see docs/DECISIONS.md's Phase 2 ADR.
+ */
+export function buildPolicy(overrides: Partial<NewPolicy> = {}): NewPolicy {
+  return {
+    type: 'auto',
+    insurer: 'Test Insurer',
+    policyNumber: 'TEST-0001',
+    premiumMinor: 60000,
+    currency: 'USD',
+    cycle: 'semiannual',
+    anchorDate: '2026-01-01',
+    nextBillingDate: '2026-07-01',
+    reminderLeadDays: 30,
     ...overrides,
   };
 }

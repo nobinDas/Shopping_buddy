@@ -156,10 +156,10 @@ already scoped below.
 Small phase. Mostly proves the recurring-cost model generalises beyond
 subscriptions.
 
-- [ ] Insurance as a cost category: policy number, insurer, premium, term, renewal date
-- [ ] Renewal reminders with configurable lead time
-- [ ] Medical and auto handled as distinct types with different renewal rhythms
-- [ ] Insurance folded into the dashboard's aggregate burn
+- [x] Insurance as a cost category: policy number, insurer, premium, term, renewal date
+- [x] Renewal reminders with configurable lead time
+- [x] Medical and auto handled as distinct types with different renewal rhythms
+- [x] Insurance folded into the dashboard's aggregate burn
 
 **Explicitly not included:** automated re-quoting. See `PROJECT_BRIEF.md`.
 

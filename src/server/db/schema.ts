@@ -184,3 +184,53 @@ export const emailAccounts = pgTable(
   },
   (table) => [index('email_accounts_status_idx').on(table.status)],
 ).enableRLS();
+
+// ── insurance_policies ───────────────────────────────────────────────
+// Phase 2. Proves the recurring-cost model generalises beyond
+// subscriptions, literally: reuses cycleEnum and statusEnum rather than
+// inventing a parallel termMonths/renewalDate concept, so a policy's
+// next renewal and its contribution to the aggregate burn are computed
+// by the exact same domain/billing-cycle.ts and domain/burn.ts functions
+// subscriptions already use. See docs/DECISIONS.md if this needs
+// revisiting later.
+
+export const policyTypeEnum = pgEnum('policy_type', ['medical', 'auto']);
+
+export const insurancePolicies = pgTable(
+  'insurance_policies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    type: policyTypeEnum('type').notNull(),
+    insurer: text('insurer').notNull(),
+    policyNumber: text('policy_number').notNull(),
+
+    premiumMinor: integer('premium_minor').notNull(),
+    currency: char('currency', { length: 3 }).notNull(),
+
+    cycle: cycleEnum('cycle').notNull(),
+    // Only meaningful when cycle = 'custom' — same convention as
+    // subscriptions.cycleDays.
+    cycleDays: integer('cycle_days'),
+
+    // Last known renewal/start date — plays the same role as
+    // subscriptions.anchorDate in computeNextBillingDate.
+    anchorDate: date('anchor_date').notNull(),
+    // Derived by domain/billing-cycle.ts — never hand-edited from the UI.
+    nextBillingDate: date('next_billing_date').notNull(),
+
+    reminderLeadDays: integer('reminder_lead_days').notNull().default(30),
+
+    status: statusEnum('status').notNull().default('active'),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('insurance_policies_status_idx').on(table.status),
+    index('insurance_policies_next_billing_date_idx').on(table.nextBillingDate),
+  ],
+).enableRLS();

@@ -7,6 +7,7 @@ import {
 } from '@/server/domain/burn';
 import { computeNextBillingDate, occurrencesInWindow } from '@/server/domain/billing-cycle';
 import { getActiveSubscriptions } from '@/server/db/queries/subscriptions';
+import { getActivePolicies } from '@/server/db/queries/insurance';
 import { createClient } from '@/server/providers/supabase';
 import { formatMoney } from '@/lib/money';
 import { formatDate } from '@/lib/dates';
@@ -21,6 +22,7 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
 
   const activeSubscriptions = await getActiveSubscriptions();
+  const activePolicies = await getActivePolicies();
   const today = format(new Date(), 'yyyy-MM-dd');
 
   // next_billing_date is recomputed here rather than trusted from the
@@ -43,12 +45,25 @@ export default async function DashboardPage() {
     }))
     .sort((a, b) => a.nextBillingDate.localeCompare(b.nextBillingDate));
 
-  const burnInput: BurnSubscription[] = activeSubscriptions.map((sub) => ({
-    amountMinor: sub.amountMinor,
-    currency: sub.currency,
-    cycle: sub.cycle,
-    cycleDays: sub.cycleDays,
-  }));
+  // Insurance folds into the same aggregate burn a subscription would —
+  // see docs/DECISIONS.md ADR (Phase 2): a policy's premium/cycle/anchor
+  // shape is the same recurring-cost shape a subscription's is, so it
+  // flows through calculateMonthlyBurn unchanged rather than needing a
+  // second, parallel calculation.
+  const burnInput: BurnSubscription[] = [
+    ...activeSubscriptions.map((sub) => ({
+      amountMinor: sub.amountMinor,
+      currency: sub.currency,
+      cycle: sub.cycle,
+      cycleDays: sub.cycleDays,
+    })),
+    ...activePolicies.map((policy) => ({
+      amountMinor: policy.premiumMinor,
+      currency: policy.currency,
+      cycle: policy.cycle,
+      cycleDays: policy.cycleDays,
+    })),
+  ];
 
   const monthlyBurn = calculateMonthlyBurn(burnInput);
   // Annualising is just ×12 on an already-integer minor-unit value, so it
@@ -79,6 +94,26 @@ export default async function DashboardPage() {
   );
   const monthlyBuckets = groupOccurrencesByMonth(occurrences, today);
 
+  // One reminder per policy whose next renewal falls inside its own
+  // reminderLeadDays — replaces the single hardcoded RenewalReminder call
+  // this dashboard used before Phase 2. 0, 1, or many.
+  const dueReminders = activePolicies
+    .map((policy) => ({
+      ...policy,
+      nextBillingDate: computeNextBillingDate({
+        anchorDate: policy.anchorDate,
+        cycle: policy.cycle,
+        cycleDays: policy.cycleDays,
+        asOf: today,
+      }),
+    }))
+    .filter((policy) => {
+      const daysUntil = Math.round(
+        (new Date(policy.nextBillingDate).getTime() - new Date(today).getTime()) / 86_400_000,
+      );
+      return daysUntil <= policy.reminderLeadDays;
+    });
+
   return (
     <main className="flex min-h-screen flex-col gap-5 px-5 pt-6">
       <header className="flex items-center justify-between">
@@ -93,7 +128,7 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      {activeSubscriptions.length === 0 ? (
+      {activeSubscriptions.length === 0 && activePolicies.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 border border-rule bg-surface-2 p-12 text-center">
           <p className="text-base text-ink">
             Nothing tracked yet. Add the first subscription you know you pay for.
@@ -124,12 +159,15 @@ export default async function DashboardPage() {
             </div>
           </section>
 
-          <RenewalReminder
-            insurer="State Farm"
-            premiumMinor={84000}
-            currency="USD"
-            renewalDate="2026-11-20"
-          />
+          {dueReminders.map((policy) => (
+            <RenewalReminder
+              key={policy.id}
+              insurer={policy.insurer}
+              premiumMinor={policy.premiumMinor}
+              currency={policy.currency}
+              renewalDate={policy.nextBillingDate}
+            />
+          ))}
 
           <section>
             <BurnMonths months={monthlyBuckets} />

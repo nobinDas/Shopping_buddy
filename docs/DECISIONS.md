@@ -27,6 +27,54 @@ not actually examined.
 
 ---
 
+## ADR-011 — Insurance reuses subscriptions' cycle model, not a parallel one
+
+**Date:** 2026-09-10
+**Status:** accepted
+**Context:** Phase 2 needed a shape for a tracked insurance policy:
+insurer, policy number, premium, a term length, a renewal date, a
+reminder lead time. The Phase 1.5 mock built this with `termMonths:
+number` + `renewalDate: string` (a static, stored date). `docs/PHASES.md`
+frames the whole phase as proof that "the recurring-cost model
+generalises beyond subscriptions" — taken literally, an insurance
+policy's premium/term/renewal shape isn't a *different* problem from a
+subscription's amount/cycle/anchor-date shape, it's the same one: both
+are "an amount that recurs on a schedule, starting from some anchor."
+**Decision:** `insurance_policies` reuses `subscriptions`' existing
+`cycleEnum` (`monthly | quarterly | semiannual | annual | custom`) and
+`statusEnum` directly (same Postgres enum types, not duplicates) instead
+of a parallel `termMonths`/`renewalDate` concept. A 6-month auto policy
+is `cycle: 'semiannual'`; a 12-month medical policy is `cycle: 'annual'`.
+`nextBillingDate` is derived by the exact same
+`domain/billing-cycle.ts#computeNextBillingDate` subscriptions already
+use, never hand-edited — same convention, same function, zero new domain
+code. The dashboard's aggregate burn concatenates policies into the same
+`BurnSubscription[]` list subscriptions build and calls
+`domain/burn.ts#calculateMonthlyBurn` unchanged.
+**Consequences:** A future reader of `schema.ts` sees `insurance_policies`
+carrying `cycle`/`cycleDays`/`anchorDate` columns that read as
+subscription vocabulary applied to a different domain — worth this ADR
+existing so that reads as a deliberate choice, not a copy-paste mistake.
+The type/rhythm distinction the checklist asks for ("medical and auto...
+different renewal rhythms") is captured implicitly, by each policy's own
+`cycle` value, rather than by an explicit per-type code branch — someone
+looking for "where auto policies are handled differently from medical
+ones" in the code won't find a dedicated function, because there isn't
+one. If a real-world insurance concept ever needs a shape a subscription
+truly can't express (e.g. a policy that isn't strictly periodic), this
+reuse would need to be revisited rather than extended.
+**Alternatives considered:** A parallel `termMonths: integer` +
+`renewalDate: date` (stored, not derived) concept, matching the original
+mock exactly — rejected because it would mean writing and testing a
+second, near-identical implementation of next-renewal-date math and
+burn normalization, duplicating logic `billing-cycle.ts`/`burn.ts`
+already get right (month-end rollover, leap years, DST boundaries) for
+no real gain, and would leave the renewal date stored rather than
+derived, breaking the "never hand-edited from the UI" convention every
+other date in this app already follows.
+
+---
+
 ## ADR-010 — LLM-touching phases (1d, 1e) deferred to the end of the build
 
 **Date:** 2026-09-10

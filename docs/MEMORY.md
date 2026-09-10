@@ -21,10 +21,12 @@ session — a session that only answered questions changes nothing.
 complete. **Phase 1c is mostly done**: real Google OAuth connect/
 disconnect/refresh is live and verified against a real Google account —
 3 of 5 checklist items checked off in `PHASES.md`. Remaining: Microsoft
-OAuth, and incremental sync (`sync_cursor`) — the latter is really where
-Phase 1d begins. A mobile-first UI/UX redesign (ADR-009) landed across
-every existing screen earlier — UI/UX only, no backend/schema changes at
-the time.
+OAuth, and incremental sync (`sync_cursor`) — deliberately deferred, see
+below. **Phase 2 (Insurance) is complete** — all 4 checklist items, real
+schema, live-verified. Per ADR-010, LLM-touching phases (1d, 1e) are
+deferred to the end of the build; Microsoft OAuth is likewise
+unscheduled. Build order now: Phase 3 next. A mobile-first UI/UX redesign
+(ADR-009) landed across every existing screen earlier.
 **Last updated:** 2026-09-10
 
 ### Done
@@ -331,21 +333,65 @@ Phase 1c, stage 2 (2026-09-10) — the real Google OAuth connect flow:
   direct query, and the user independently confirmed at
   myaccount.google.com/permissions that Google-side access was actually
   revoked, not just locally deleted)
-- `pnpm verify` green (115 unit, 25 integration). Not yet committed
+- `pnpm verify` green (115 unit, 25 integration). Committed (`a3c45fd`)
+
+Phase 2 — Insurance as a recurring cost (2026-09-10), complete, all 4
+checklist items:
+
+- Core design call: `insurance_policies` reuses `subscriptions`'
+  `cycleEnum`/`statusEnum` rather than a parallel `termMonths`/
+  `renewalDate` concept — a 6-month auto policy is `cycle: 'semiannual'`,
+  a 12-month medical policy is `cycle: 'annual'`. This means renewal
+  reminders and burn fold-in reuse `domain/billing-cycle.ts`'s
+  `computeNextBillingDate` and `domain/burn.ts`'s `calculateMonthlyBurn`
+  completely unchanged — no new domain logic this phase at all. Matches
+  `PHASES.md`'s own framing of the phase ("proves the recurring-cost
+  model generalises")
+- `insurance_policies` table (migration `0004`, reuses the existing
+  `cycle`/`status` Postgres enum types, no duplicates), `policyTypeEnum`
+  (`medical`/`auto`, a label only — each policy's own `cycle` already
+  captures "different renewal rhythms")
+- `lib/validation/insurance.ts`, `db/queries/insurance.ts`,
+  `services/insurance.service.ts` — the last one shipped
+  `archivePolicy` **and** `restorePolicy` together from the start,
+  deliberately not repeating the gap subscriptions' service left (see
+  2026-09-09 entry below)
+- Real UI: `insurance/page.tsx` (server) + new
+  `components/insurance/PolicyList.tsx` (client) — Dialog-based add/edit
+  form (edit wasn't in the original mock; added since premiums
+  realistically change at every real-world renewal), archive/restore per
+  policy. A `nextBillingDate` computed server-side and passed down as a
+  plain prop — `PolicyList.tsx` initially imported
+  `computeNextBillingDate` directly from `src/server/domain/`, which
+  violates `docs/ARCHITECTURE.md`'s "client components never import
+  `src/server/**`" boundary; caught before committing, fixed by moving
+  the computation into the server component
+- Dashboard: `getActivePolicies()` folded into the same burn calculation
+  as subscriptions (literal list concatenation, no separate math), and
+  the single hardcoded `RenewalReminder` replaced with one banner per
+  policy whose renewal falls inside its own `reminderLeadDays` — 0, 1, or
+  many
+- `pnpm verify` green (115 unit, 33 integration — 8 new this phase).
+  Verified live end to end: added a real policy, confirmed the
+  dashboard's monthly burn ($840/6mo → $140.00) and a live reminder
+  banner both reflected it correctly, edited the premium, archived it
+  (confirmed the dashboard's burn and empty-state gate both reacted
+  correctly), restored it. One test row deleted from Postgres afterward
+  — **with explicit permission first**, per the new delete-approval rule
+  in `CLAUDE.md`
 
 ### In progress
 
-Nothing mid-task. Phase 1c stage 2 above is complete, verified live, and
-green — just needs committing.
+Nothing mid-task. Phase 2 above is complete, verified live, green, and
+committed.
 
 ### Next
 
-**Phase 2 (Insurance)** — per ADR-010, build order now goes Phase 2 →
-Phase 3 → Phase 4 → Phase 5 → 1d → 1e, deferring both LLM-touching
-phases to the end so they're designed once, deliberately, against an
-app that's otherwise fully real rather than retrofitted mid-build.
-Microsoft OAuth (the last unchecked 1c item) is optional/unscheduled,
-not blocking anything. See `PHASES.md`'s build-order note at the top.
+**Phase 3 (Shopping list, single-store price check)** — per ADR-010's
+build order (Phase 3 → Phase 4 → Phase 5 → 1d → 1e). The shopping screen
+already exists with mock data from the mobile redesign; this phase
+replaces it with a real schema, real queries, and one real store price
+integration. See `PHASES.md`.
 
 ### Blocked
 
@@ -402,6 +448,30 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-10 — Phase 2: Insurance as a recurring cost, complete
+**Did:** Built real insurance policy tracking — schema (migration `0004`,
+reusing `subscriptions`' `cycle`/`status` enums rather than a parallel
+concept), validation, query/service layers (archive **and** restore
+shipped together this time), and real UI (`insurance/page.tsx` +
+`PolicyList.tsx`, with edit added beyond the original mock). Folded into
+the dashboard's real aggregate burn and replaced the single hardcoded
+renewal-reminder banner with a real per-policy one. Caught and fixed a
+client/server import-boundary violation before committing (see Current
+State above). Verified live end to end: added, watched the dashboard
+burn and a real reminder banner both update, edited the premium,
+archived, restored — burn and empty-state gate reacted correctly at each
+step. One test row deleted afterward with explicit permission, per the
+`CLAUDE.md` delete-approval rule this session added earlier. `pnpm
+verify` green (115 unit, 33 integration). All 4 of `PHASES.md`'s Phase 2
+items checked off.
+**Decided:** Nothing new scoping-wise beyond what the approved plan
+already covered — the cycle-model-reuse design was proposed and approved
+during planning, not decided ad hoc while building.
+**Next:** Phase 3 (Shopping list, single-store price check), per
+ADR-010's build order.
 
 ---
 
