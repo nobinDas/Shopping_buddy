@@ -27,6 +27,54 @@ not actually examined.
 
 ---
 
+## ADR-012 — SerpApi's Walmart engine as Phase 3's price source, not Walmart's own APIs
+
+**Date:** 2026-09-10
+**Status:** accepted
+**Context:** Phase 3 needed one store with a real, per-item price lookup.
+The user chose Walmart. Walmart has no public self-serve product/price
+API — the two official options are the Affiliate API (gated behind
+Impact.com approval, built for affiliate-marketing sites driving
+click-through sales to earn commission, not a personal read-only price
+check) and Marketplace/Supplier APIs (for sellers listing products on
+Walmart.com, not for reading prices as a shopper). The user pushed back
+on an initial recommendation to drop Walmart entirely and pointed at
+third-party data providers (SerpApi, Apify) to verify instead. Researched
+both: SerpApi's Walmart search engine wraps real Walmart search results
+as structured JSON, free tier 250 searches/month with a 50/hour cap, $25/mo
+for 1,000 if outgrown; Apify's Walmart scraper runs on a $5/month platform
+credit with per-result pricing that becomes harder to bound at low volume.
+**Decision:** SerpApi's `engine=walmart` search endpoint
+(`src/server/providers/serpapi.ts`), called per-item, on-demand only —
+never automatically or in bulk — exactly because the free tier's 250/month
+and 50/hour caps make an automatic or bulk-check design actively harmful,
+not just wasteful. The provider takes the top organic result as-is with no
+fuzzy SKU/unit-size matching.
+**Consequences:** Price data is a scraped-search-result proxy for Walmart's
+real catalog, not an authoritative Walmart API — result quality depends on
+how well an item's free-text `name` matches Walmart's own search ranking,
+and a poorly-named item ("stuff for the thing") will return a wrong or no
+match with no way to disambiguate. The 250/month cap is a real ceiling: at
+even light daily use across multiple lists it will be exhausted well before
+a billing cycle ends, and there is no in-app warning when the cap is close
+— a future phase item, not built now. Introduces a paid-if-scaled
+third-party dependency (SerpApi) sitting between the app and Walmart's own
+site, which could change its scraping approach, pricing, or terms at any
+time.
+**Alternatives considered:** Walmart Affiliate API — rejected, purpose-built
+for driving affiliate sales traffic and gated behind an approval process
+this app's use case (personal price checks) wouldn't plausibly clear.
+Walmart Marketplace/Supplier APIs — rejected, built for sellers managing
+listings, not for reading prices as a shopper. Apify's Walmart scraper —
+considered viable and cheaper at very low volume, but SerpApi's flat
+searches/month model is easier to reason about against a hard monthly cap
+than Apify's per-result credit consumption. No price integration at all
+(manual price entry only) — rejected because Phase 3's own exit criteria
+("a real list priced against a real store") requires an actual lookup, not
+just a place to type a number in.
+
+---
+
 ## ADR-011 — Insurance reuses subscriptions' cycle model, not a parallel one
 
 **Date:** 2026-09-10

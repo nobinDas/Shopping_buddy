@@ -23,10 +23,12 @@ disconnect/refresh is live and verified against a real Google account —
 3 of 5 checklist items checked off in `PHASES.md`. Remaining: Microsoft
 OAuth, and incremental sync (`sync_cursor`) — deliberately deferred, see
 below. **Phase 2 (Insurance) is complete** — all 4 checklist items, real
-schema, live-verified. Per ADR-010, LLM-touching phases (1d, 1e) are
-deferred to the end of the build; Microsoft OAuth is likewise
-unscheduled. Build order now: Phase 3 next. A mobile-first UI/UX redesign
-(ADR-009) landed across every existing screen earlier.
+schema, live-verified. **Phase 3 (Shopping list, single-store price
+check) is complete** — all 5 checklist items, real schema, real SerpApi
+Walmart price lookups, live-verified. Per ADR-010, LLM-touching phases
+(1d, 1e) are deferred to the end of the build; Microsoft OAuth is
+likewise unscheduled. Build order now: Phase 4 next. A mobile-first
+UI/UX redesign (ADR-009) landed across every existing screen earlier.
 **Last updated:** 2026-09-10
 
 ### Done
@@ -380,18 +382,72 @@ checklist items:
   — **with explicit permission first**, per the new delete-approval rule
   in `CLAUDE.md`
 
+Phase 3 — Shopping list, single-store price check (2026-09-10), complete,
+all 5 checklist items:
+
+- Researched with the user which store/API to use: Walmart has no public
+  self-serve price API; the Affiliate API is a purpose-mismatch (built
+  for affiliate-marketing sites, not a personal backend), Marketplace/
+  Supplier APIs are for sellers, not shoppers. **Decided: SerpApi's
+  Walmart search engine** — free tier 250 searches/month, 50/hour cap.
+  See ADR-012
+- Four new tables (migration `0005`): `shoppingLists`, `shoppingListItems`
+  (quantity/notes/store/unitPriceMinor/currency/checked — checked state
+  now **persisted** server-side, unlike the old mock's ephemeral client
+  state — /lastPriceCheckedAt), `itemPriceHistory` (append-only, same
+  pattern as `price_history`), `preferredStores` (unique-indexed name).
+  Seeded the four default lists (Grocery/Household/Personal/One-off) via
+  a one-off `execute_sql` insert
+- `providers/serpapi.ts` (new): `parseWalmartSearchResponse` (pure, 7
+  unit tests) + `searchWalmartPrice` (the real `fetch` call). Live-
+  verified against the real API: "Milk, 1gal" returned a real $5.37
+  Walmart price
+- `db/queries/shopping.ts` + `db/queries/stores.ts`, `services/
+  shopping.service.ts` (`addItem`/`updateItem`/`deleteItem`/
+  `toggleItemChecked`/`checkItemPrice` — the last returns a typed
+  `found`/`not_found`/`error` result rather than throwing, so the UI
+  shows real inline feedback), `shopping/actions.ts` + `stores/actions.ts`
+- Real UI: `shopping/page.tsx` (server) + new
+  `components/shopping/ShoppingLists.tsx` (client, the phase's biggest
+  new file — Tabs by list, checkbox/check-price/edit/delete per item,
+  inline price-check feedback) and `stores/page.tsx` (server) + new
+  `components/stores/PreferredStoresList.tsx` (client). The shopping
+  page's store `Select` now sources its options from real
+  `getAllStores()` data
+- **Design constraint, not an afterthought**: SerpApi's 250/month cap
+  makes automatic or bulk price checks actively harmful, so every check
+  is deliberately one-click, one-item, user-triggered — no "check all"
+  button, no background sync
+- Two real bugs self-caught before running tests: the edit panel's store
+  `Select` initially wouldn't submit (same Radix pattern already fixed
+  twice this session in `SubscriptionForm.tsx`/`PolicyList.tsx` — fixed
+  with controlled state + a hidden mirror input), and the price-check
+  "found" feedback read the stale outer `item` prop instead of the
+  action's fresh return value
+- `pnpm verify` green: 122 unit (115 + 7 new), 47 integration (33 + 14
+  new). Verified live end to end in a real browser: added an item with
+  quantity/notes, checked its real Walmart price ($5.37, confirmed as an
+  `item_price_history` row in Postgres), edited it (quantity, notes),
+  checked it off (dropped out of the priced subtotal, survived a full
+  page reload — proving real persistence), added a preferred store
+  ("Trader Joe's", confirmed it appeared in the shopping page's store
+  picker), removed the store, deleted the item. The delete/remove-store
+  UI actions doubled as test-data cleanup — no direct SQL deletion was
+  needed, confirmed via `execute_sql` that all three tables are empty
+  afterward
+
 ### In progress
 
-Nothing mid-task. Phase 2 above is complete, verified live, green, and
-committed.
+Nothing mid-task. Phase 3 above is complete, verified live, green, and
+not yet committed.
 
 ### Next
 
-**Phase 3 (Shopping list, single-store price check)** — per ADR-010's
-build order (Phase 3 → Phase 4 → Phase 5 → 1d → 1e). The shopping screen
-already exists with mock data from the mobile redesign; this phase
-replaces it with a real schema, real queries, and one real store price
-integration. See `PHASES.md`.
+**Phase 4 (Route and deadline planner)** — per ADR-010's build order
+(Phase 4 → Phase 5 → 1d → 1e). The trips screen already exists with mock
+data from the mobile redesign; this phase replaces it with a real mapping
+API integration for multi-stop routing and leave-by-time computation. See
+`PHASES.md`.
 
 ### Blocked
 
@@ -448,6 +504,34 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-10 — Phase 3: Shopping list, single-store price check, complete
+**Did:** Researched Walmart's API landscape with the user (no public
+self-serve price API exists) and settled on SerpApi's Walmart search
+engine as the price source — see ADR-012 for the full trail. Built real
+shopping lists/items/price-history/preferred-stores schema (migration
+`0005`, four default lists seeded), a `providers/serpapi.ts` adapter, full
+query/service/action layers, and real UI replacing both the shopping and
+stores mock screens. Designed every price check as one-click/one-item/
+user-triggered given SerpApi's 250-search/month cap — no automatic or
+bulk checking. Self-caught and fixed two real bugs before running tests
+(a non-submitting Radix Select, a stale-prop price-check message). `pnpm
+verify` green (122 unit, 47 integration). Verified live end to end
+against a real Google-free browser session and the real SerpApi/Postgres
+stack: item CRUD, a real $5.37 Walmart price lookup written to price
+history, edit, check-off persisting across a reload, preferred-store
+add/remove reflected in the shopping page's store picker, item deletion.
+All test data was cleaned up as a side effect of exercising the delete/
+remove-store features themselves (confirmed empty via direct query) —
+no separate DELETE APPROVAL step was needed since nothing remained to
+delete afterward. All 5 of `PHASES.md`'s Phase 3 items checked off.
+**Decided:** SerpApi over the Walmart Affiliate API or Apify — see
+ADR-012. Every price check stays manual/per-item, never automatic, for
+the life of this integration unless the rate-limit situation changes.
+**Next:** Phase 4 (Route and deadline planner), per ADR-010's build
+order.
 
 ---
 

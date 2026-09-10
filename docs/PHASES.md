@@ -173,11 +173,11 @@ renewal reminder that fires at the right time.
 Deliberately narrow. One store, one price source. Prove the loop before
 generalising to comparison across retailers.
 
-- [ ] Multiple named lists (grocery, household, personal, one-off)
-- [ ] Items with quantity, notes, and an optional store preference
-- [ ] One store integration, price lookup per item
-- [ ] Estimated list total
-- [ ] Price history per item
+- [x] Multiple named lists (grocery, household, personal, one-off)
+- [x] Items with quantity, notes, and an optional store preference
+- [x] One store integration, price lookup per item
+- [x] Estimated list total
+- [x] Price history per item
 
 **Exit criteria:** a real list priced against a real store with an accurate total.
 

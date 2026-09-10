@@ -8,6 +8,8 @@ import {
   date,
   timestamp,
   index,
+  uniqueIndex,
+  boolean,
   customType,
 } from 'drizzle-orm/pg-core';
 
@@ -233,4 +235,94 @@ export const insurancePolicies = pgTable(
     index('insurance_policies_status_idx').on(table.status),
     index('insurance_policies_next_billing_date_idx').on(table.nextBillingDate),
   ],
+).enableRLS();
+
+// ── shopping_lists / shopping_list_items / item_price_history ─────────
+// Phase 3. Deliberately narrow: one store (Walmart, via providers/serpapi.ts),
+// price lookups are explicit and per-item — never automatic or bulk, since
+// SerpApi's free tier is rate-limited (250/month, 50/hour). See
+// docs/DECISIONS.md and docs/PHASES.md.
+
+export const shoppingLists = pgTable('shopping_lists', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}).enableRLS();
+
+export const shoppingListItems = pgTable(
+  'shopping_list_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    listId: uuid('list_id')
+      .notNull()
+      .references(() => shoppingLists.id, { onDelete: 'cascade' }),
+
+    name: text('name').notNull(),
+    quantity: integer('quantity').notNull().default(1),
+    notes: text('notes'),
+    // Free-text preference, independent of the Walmart price lookup — an
+    // item can prefer a different store entirely and still have its
+    // Walmart price checked for reference.
+    store: text('store'),
+
+    // Null until first checked — "not looked up yet," not zero. See
+    // docs/DESIGN.md: "'$0.00' and '—' mean different things."
+    unitPriceMinor: integer('unit_price_minor'),
+    currency: char('currency', { length: 3 }),
+    lastPriceCheckedAt: timestamp('last_price_checked_at', { withTimezone: true }),
+
+    // Persisted, unlike the Phase 1.5 mock's ephemeral client-only
+    // checked state — a real list should remember what's checked off
+    // across a session, not reset on reload.
+    checked: boolean('checked').notNull().default(false),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [index('shopping_list_items_list_id_idx').on(table.listId)],
+).enableRLS();
+
+// Append-only, same convention as price_history — never UPDATEd, only
+// inserted. Accumulates starting this phase; Phase 5 reads from it
+// (docs/TOOLS.md: "Price history | Own Postgres tables | Accumulated
+// from Phase 3").
+export const itemPriceHistorySourceEnum = pgEnum('item_price_history_source', [
+  'manual',
+  'walmart',
+]);
+
+export const itemPriceHistory = pgTable(
+  'item_price_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => shoppingListItems.id, { onDelete: 'cascade' }),
+
+    unitPriceMinor: integer('unit_price_minor').notNull(),
+    currency: char('currency', { length: 3 }).notNull(),
+    source: itemPriceHistorySourceEnum('source').notNull(),
+
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('item_price_history_item_id_idx').on(table.itemId)],
+).enableRLS();
+
+// ── preferred_stores ────────────────────────────────────────────────
+// The list offered when setting a shopping item's store preference —
+// see docs/DECISIONS.md ADR-009's note that this fits Phase 3's scope.
+
+export const preferredStores = pgTable(
+  'preferred_stores',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('preferred_stores_name_idx').on(table.name)],
 ).enableRLS();

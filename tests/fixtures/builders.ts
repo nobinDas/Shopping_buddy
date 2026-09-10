@@ -3,12 +3,20 @@ import type {
   priceHistory,
   emailAccounts,
   insurancePolicies,
+  shoppingLists,
+  shoppingListItems,
+  itemPriceHistory,
+  preferredStores,
 } from '@/server/db/schema';
 
 type NewSubscription = typeof subscriptions.$inferInsert;
 type NewPriceHistory = typeof priceHistory.$inferInsert;
 type NewEmailAccount = typeof emailAccounts.$inferInsert;
 type NewPolicy = typeof insurancePolicies.$inferInsert;
+type NewShoppingList = typeof shoppingLists.$inferInsert;
+type NewShoppingItem = typeof shoppingListItems.$inferInsert;
+type NewItemPriceHistory = typeof itemPriceHistory.$inferInsert;
+type NewPreferredStore = typeof preferredStores.$inferInsert;
 
 /**
  * Builds a valid `subscriptions` insert row with sensible defaults,
@@ -80,6 +88,54 @@ export function buildPolicy(overrides: Partial<NewPolicy> = {}): NewPolicy {
     anchorDate: '2026-01-01',
     nextBillingDate: '2026-07-01',
     reminderLeadDays: 30,
+    ...overrides,
+  };
+}
+
+/** Builds a valid `shopping_lists` insert row. */
+export function buildShoppingList(overrides: Partial<NewShoppingList> = {}): NewShoppingList {
+  return {
+    name: 'Test List',
+    ...overrides,
+  };
+}
+
+/**
+ * Builds a valid `shopping_list_items` insert row. `listId` has no
+ * default — every caller has a real list id to attach it to.
+ */
+export function buildShoppingItem(
+  listId: string,
+  overrides: Partial<NewShoppingItem> = {},
+): NewShoppingItem {
+  return {
+    listId,
+    name: 'Test Item',
+    quantity: 1,
+    ...overrides,
+  };
+}
+
+/** Builds a valid `item_price_history` insert row. */
+export function buildItemPriceHistory(
+  itemId: string,
+  overrides: Partial<NewItemPriceHistory> = {},
+): NewItemPriceHistory {
+  return {
+    itemId,
+    unitPriceMinor: 199,
+    currency: 'USD',
+    source: 'manual',
+    ...overrides,
+  };
+}
+
+/** Builds a valid `preferred_stores` insert row. */
+export function buildPreferredStore(
+  overrides: Partial<NewPreferredStore> = {},
+): NewPreferredStore {
+  return {
+    name: 'Test Store',
     ...overrides,
   };
 }
