@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -128,14 +129,19 @@ export function ShoppingLists({
   const [draft, setDraft] = useState('');
   const [isPending, startTransition] = useTransition();
 
-  function addItem(listId: string) {
+  function addItem(list: ListWithItems) {
     const name = draft.trim();
     if (!name) return;
     const formData = new FormData();
     formData.set('name', name);
+    // No store field is shown in the quick-add row itself — falls back
+    // to the list's own default store (set on /settings), same as
+    // leaving the edit panel's store picker on "No store set" when
+    // there's no default configured.
+    formData.set('store', list.defaultStore ?? '');
     setDraft('');
     startTransition(() => {
-      void addItemAction(listId, formData);
+      void addItemAction(list.id, formData);
     });
   }
 
@@ -163,6 +169,14 @@ export function ShoppingLists({
 
       {lists.map((list) => (
         <TabsContent key={list.id} value={list.id}>
+          {list.name !== 'One-off' && !list.defaultStore && (
+            <Link
+              href="/settings"
+              className="mb-3 block border border-control-border bg-surface-2 px-3 py-2.5 text-[13px] text-ink"
+            >
+              Choose your default store for {list.name} in Settings.
+            </Link>
+          )}
           {list.items.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 border border-rule bg-surface-2 p-12 text-center">
               <p className="text-base text-ink">Nothing on this list yet. Add the first item you need.</p>
@@ -249,7 +263,7 @@ export function ShoppingLists({
                 setDraft(event.target.value);
               }}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') addItem(list.id);
+                if (event.key === 'Enter') addItem(list);
               }}
               placeholder="New item"
               aria-label="New item"
@@ -258,7 +272,7 @@ export function ShoppingLists({
             <button
               type="button"
               onClick={() => {
-                addItem(list.id);
+                addItem(list);
               }}
               disabled={!draft.trim() || isPending}
               className="flex-none border border-control-border px-3 py-1.5 font-sans text-xs font-medium text-ink disabled:opacity-40"
@@ -267,7 +281,9 @@ export function ShoppingLists({
             </button>
           </div>
           <p className="pt-2 pl-[26px] text-[11px] leading-relaxed text-ink-muted">
-            New items land with quantity 1 and no store set. Use the pencil to set details.
+            {list.defaultStore
+              ? `New items land with quantity 1 and default to ${list.defaultStore}. Use the pencil to set details.`
+              : 'New items land with quantity 1 and no store set. Use the pencil to set details.'}
           </p>
         </TabsContent>
       ))}

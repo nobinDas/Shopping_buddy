@@ -49,6 +49,14 @@ export async function getAllOutstandingItems(client: DbClient = db): Promise<Out
   return rows.map(({ item, listName }) => ({ ...item, listName }));
 }
 
+export async function updateListDefaultStore(
+  listId: string,
+  defaultStore: string | null,
+  client: DbClient = db,
+): Promise<void> {
+  await client.update(shoppingLists).set({ defaultStore }).where(eq(shoppingLists.id, listId));
+}
+
 export async function getItemById(
   id: string,
   client: DbClient = db,

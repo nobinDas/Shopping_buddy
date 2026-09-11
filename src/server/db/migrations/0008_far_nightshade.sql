@@ -1,0 +1,1 @@
+ALTER TABLE "shopping_lists" ADD COLUMN "default_store" text;

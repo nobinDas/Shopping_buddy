@@ -249,6 +249,12 @@ export const insurancePolicies = pgTable(
 export const shoppingLists = pgTable('shopping_lists', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  // Set from /settings — a new item added to this list with no store
+  // explicitly chosen falls back to this one. Free text, matching
+  // shoppingListItems.store's own free-text convention (not a FK to
+  // preferredStores). Null means "no default," not "no store" — an item
+  // can still be created with no store when this is unset.
+  defaultStore: text('default_store'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 

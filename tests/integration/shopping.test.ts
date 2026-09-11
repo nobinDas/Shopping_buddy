@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { db } from '@/server/db';
 import { shoppingLists, shoppingListItems } from '@/server/db/schema';
 import {
@@ -7,6 +8,7 @@ import {
   insertItem,
   deleteItemRow,
   getAllOutstandingItems,
+  updateListDefaultStore,
 } from '@/server/db/queries/shopping';
 import { buildShoppingList, buildShoppingItem } from '../fixtures/builders';
 
@@ -130,6 +132,27 @@ describe('getAllOutstandingItems', () => {
         expect(names).toContain('Still needed');
         expect(names).not.toContain('Bought');
         expect(outstanding.find((i) => i.name === 'Still needed')?.listName).toBe('Grocery');
+
+        tx.rollback();
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+describe('updateListDefaultStore', () => {
+  it('sets and clears a list\'s default store', async () => {
+    await expect(
+      db.transaction(async (tx) => {
+        const [list] = await tx.insert(shoppingLists).values(buildShoppingList()).returning();
+        if (!list) throw new Error('Insert did not return a row');
+
+        await updateListDefaultStore(list.id, "Trader Joe's", tx);
+        const [withDefault] = await tx.select().from(shoppingLists).where(eq(shoppingLists.id, list.id));
+        expect(withDefault?.defaultStore).toBe("Trader Joe's");
+
+        await updateListDefaultStore(list.id, null, tx);
+        const [cleared] = await tx.select().from(shoppingLists).where(eq(shoppingLists.id, list.id));
+        expect(cleared?.defaultStore).toBeNull();
 
         tx.rollback();
       }),

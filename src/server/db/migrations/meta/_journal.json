@@ -57,6 +57,13 @@
       "when": 1789134939308,
       "tag": "0007_wild_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789140386350,
+      "tag": "0008_far_nightshade",
+      "breakpoints": true
     }
   ]
 }
