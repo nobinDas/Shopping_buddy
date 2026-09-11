@@ -1,0 +1,121 @@
+import { db, type DbClient } from '@/server/db';
+import { getEmailAccountById, updateEmailAccountRow } from '@/server/db/queries/email-accounts';
+import {
+  insertDetectedSignal,
+  getPendingSignalsForAccount,
+  markSignalDuplicate,
+} from '@/server/db/queries/detection';
+import { getValidAccessToken } from '@/server/services/email-account.service';
+import { listHistory, getMessageMetadata, getMessageBody } from '@/server/providers/gmail';
+import { classifyEmail } from '@/server/providers/gemini';
+import { looksLikelySubscription } from '@/server/domain/prefilter';
+import { computeContentHash } from '@/server/domain/content-hash';
+import { dedupeSignals } from '@/server/domain/dedupe-signals';
+import { normalizeVendorKey } from '@/server/domain/vendor-key';
+
+export interface SyncResult {
+  messagesScanned: number;
+  signalsCreated: number;
+  duplicatesMerged: number;
+}
+
+/**
+ * Syncs one connected account: fetches new messages since its stored
+ * cursor (or a bounded first-sync fallback), pre-filters cheaply on
+ * metadata, classifies only the survivors, writes real detected_signals,
+ * deduplicates the batch, and advances the cursor. On-demand only —
+ * called from a "Sync now" click (accounts/actions.ts) or the cron route
+ * (api/cron/sync), never automatically on every page load.
+ *
+ * Logs only safe fields throughout (docs/SECURITY.md: message IDs,
+ * vendor keys, amounts, signal types, timing, error types — never
+ * subject, snippet, or body) — this file is the one place all fetched
+ * email content passes through server-side, so it's the deliberate choke
+ * point for that rule.
+ */
+export async function syncAccount(accountId: string, client: DbClient = db): Promise<SyncResult> {
+  const account = await getEmailAccountById(accountId, client);
+  if (!account) {
+    throw new Error(`syncAccount: no email account with id ${accountId}`);
+  }
+
+  const accessToken = await getValidAccessToken(account, client);
+  const { messageIds, newHistoryId } = await listHistory(accessToken, account.syncCursor);
+
+  let signalsCreated = 0;
+
+  for (const messageId of messageIds) {
+    const metadata = await getMessageMetadata(accessToken, messageId);
+    if (!looksLikelySubscription(metadata)) {
+      continue;
+    }
+
+    let classification;
+    try {
+      const { body } = await getMessageBody(accessToken, messageId);
+      classification = await classifyEmail({ subject: metadata.subject, from: metadata.from, body });
+    } catch (error) {
+      // A genuine request failure for one message doesn't abort the
+      // whole sync — log the error type/message id only, move on.
+      console.error('syncAccount: classification request failed', {
+        messageId,
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+      });
+      continue;
+    }
+
+    if (!classification) {
+      continue;
+    }
+
+    const contentHash = computeContentHash({
+      sender: metadata.from,
+      subject: metadata.subject,
+      amountMinor: classification.amountMinor,
+      billingDate: classification.billingDate,
+    });
+
+    const inserted = await insertDetectedSignal(
+      {
+        accountId,
+        messageId,
+        contentHash,
+        signalType: classification.signalType,
+        vendorKey: normalizeVendorKey(classification.vendorName),
+        amountMinor: classification.amountMinor,
+        currency: classification.currency,
+        billingDate: classification.billingDate,
+        confidence: classification.confidence.toString(),
+      },
+      client,
+    );
+    if (inserted) {
+      signalsCreated += 1;
+    }
+  }
+
+  const pending = await getPendingSignalsForAccount(accountId, client);
+  const dedupeResult = dedupeSignals(
+    pending.map((signal) => ({
+      id: signal.id,
+      contentHash: signal.contentHash,
+      confidence: Number(signal.confidence),
+      createdAt: signal.createdAt,
+    })),
+  );
+  for (const { id, supersededBy } of dedupeResult.supersede) {
+    await markSignalDuplicate(id, supersededBy, client);
+  }
+
+  await updateEmailAccountRow(
+    accountId,
+    { syncCursor: newHistoryId, lastSyncedAt: new Date() },
+    client,
+  );
+
+  return {
+    messagesScanned: messageIds.length,
+    signalsCreated,
+    duplicatesMerged: dedupeResult.supersede.length,
+  };
+}

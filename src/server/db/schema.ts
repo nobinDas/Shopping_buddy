@@ -4,6 +4,7 @@ import {
   uuid,
   text,
   integer,
+  numeric,
   char,
   date,
   timestamp,
@@ -186,6 +187,73 @@ export const emailAccounts = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [index('email_accounts_status_idx').on(table.status)],
+).enableRLS();
+
+// ── detected_signals ────────────────────────────────────────────────
+// Phase 1d. What extraction produced — never the email body. See
+// docs/SECURITY.md: "Email bodies are never persisted. Extraction
+// happens in memory; only the structured signal is stored." Reused by
+// Phase 1e's (not yet built) reconciliation, which only ever reads
+// `pending` signals — deduplication (this phase) already resolved
+// cross-inbox duplicates by the time 1e runs.
+
+export const signalTypeEnum = pgEnum('signal_type', [
+  'new',
+  'renewal',
+  'price_change',
+  'trial_conversion',
+  'cancellation',
+]);
+
+export const signalStatusEnum = pgEnum('signal_status', [
+  'pending',
+  'matched',
+  'merged_duplicate',
+  'dismissed',
+]);
+
+export const detectedSignals = pgTable(
+  'detected_signals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => emailAccounts.id, { onDelete: 'cascade' }),
+
+    // Provider message ID — the unique index below is what makes a sync
+    // retry safe (re-processing an already-seen message is a no-op via
+    // onConflictDoNothing), see docs/DATA_MODEL.md.
+    messageId: text('message_id').notNull(),
+    // Sender + subject + extracted amount + extracted date, hashed
+    // (domain/content-hash.ts) — the cross-inbox dedupe key. The same
+    // receipt landing in two connected inboxes has two message IDs and
+    // one contentHash.
+    contentHash: text('content_hash').notNull(),
+
+    signalType: signalTypeEnum('signal_type').notNull(),
+    vendorKey: text('vendor_key').notNull(),
+
+    // Nullable — not every signal carries a price (e.g. a cancellation
+    // notice).
+    amountMinor: integer('amount_minor'),
+    currency: char('currency', { length: 3 }),
+    billingDate: date('billing_date'),
+
+    confidence: numeric('confidence', { precision: 3, scale: 2 }).notNull(),
+
+    status: signalStatusEnum('status').notNull().default('pending'),
+    // Set on the losing row when domain/dedupe-signals.ts collapses
+    // duplicates — points at the surviving signal.
+    supersededBy: uuid('superseded_by'),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('detected_signals_account_message_idx').on(table.accountId, table.messageId),
+    index('detected_signals_status_idx').on(table.status),
+    index('detected_signals_content_hash_idx').on(table.contentHash),
+  ],
 ).enableRLS();
 
 // ── insurance_policies ───────────────────────────────────────────────

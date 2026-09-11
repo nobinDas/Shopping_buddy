@@ -1,0 +1,12 @@
+{
+  "subject": "Your Netflix payment confirmation",
+  "from": "info@account.netflix.com",
+  "body": "Hi,\n\nThanks for being a member. We've charged your payment method $15.49 (USD) for your Standard plan.\n\nYour next billing date is October 1, 2026.\n\n- The Netflix Team",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Netflix",
+    "amountMinor": 1549,
+    "currency": "USD",
+    "billingDate": "2026-10-01"
+  }
+}

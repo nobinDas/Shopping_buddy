@@ -64,6 +64,13 @@
       "when": 1789140386350,
       "tag": "0008_far_nightshade",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789144084535,
+      "tag": "0009_overconfident_psylocke",
+      "breakpoints": true
     }
   ]
 }

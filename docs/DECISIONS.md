@@ -27,6 +27,53 @@ not actually examined.
 
 ---
 
+## ADR-015 — Gemini (Google AI Studio) replaces Claude for Phase 1d classification
+
+**Date:** 2026-09-11
+**Status:** accepted
+**Context:** `docs/TOOLS.md` pre-reasoned Claude Haiku 4.5 (classification)
+with a Sonnet 5 escalation path for low-confidence cases, via
+`@anthropic-ai/sdk`. When Phase 1d actually started, the user asked to
+use Gemini via Google AI Studio instead, specifically for its free tier.
+Verified via research rather than assumed: a genuine no-billing-required
+free tier exists (current models Gemini Flash/Flash-Lite; Gemini Pro
+moved behind billing in May 2026), with JSON Schema structured output
+that Zod validates against cleanly, via the official `@google/genai` SDK.
+**Decision:** Classification/extraction uses Gemini Flash
+(`providers/gemini.ts`), single-tier — **no paid escalation model**. The
+original two-tier design (cheap model + expensive fallback for hard
+cases) assumed an affordable escalation path; since Gemini Pro isn't
+free, the user chose to drop escalation entirely rather than reintroduce
+a cost Gemini was chosen specifically to avoid. A low-confidence result
+is surfaced as an ambiguous match in Phase 1e's (not yet built)
+reconciliation — the existing 0.4–0.7 "ambiguous, show both candidates"
+band in `docs/DATA_MODEL.md` already covers this, so nothing new needed
+designing for it.
+**Consequences:** **Free-tier inputs and outputs may be used by Google to
+improve their models** — a real, disclosed difference from a paid tier
+(and from Claude's API, which doesn't train on customer data by default).
+This app sends pre-filtered, subscription-likely email content through
+it. The user explicitly accepted this "for now," with an intent to
+revisit after the development phase — recorded as an open question in
+`docs/MEMORY.md` so it isn't silently forgotten. Classification accuracy
+on genuinely ambiguous emails is weaker without an escalation path — those
+cases surface to the user instead of getting a second, stronger-model
+attempt, meaning more manual review than the original design implied.
+Free-tier rate limits (per-minute and per-day caps, low double digits to
+low thousands depending on the exact model) are generous for a personal
+inbox but are a real ceiling this app has never had to design around
+before with an LLM provider.
+**Alternatives considered:** Claude Haiku + Sonnet escalation, per the
+original `docs/TOOLS.md` pre-reasoning — rejected per the user's explicit
+preference for a free option. Gemini Flash with Gemini Pro as a paid
+escalation path — rejected by the user in favor of a fully single-tier
+design; the cost avoidance was the point of switching providers at all.
+Enabling Gemini's paid tier from the start (to avoid the training-data
+question entirely) — rejected for now; the user wants to develop against
+the free tier first and revisit after the development phase.
+
+---
+
 ## ADR-014 — Phase 3's per-item price-check retired; Phase 5 becomes a standalone Watchlist on Google Shopping
 
 **Date:** 2026-09-11

@@ -74,11 +74,24 @@ to be settled before anything writes to it automatically.
 
 ### 1d — Detection
 
-- [ ] Cheap pre-filter (sender/heuristic) before any LLM call
-- [ ] LLM classification and extraction with Zod-validated JSON output
-- [ ] Signal types: new subscription, renewal, price change, trial conversion, cancellation
-- [ ] Cross-inbox deduplication
-- [ ] Golden-file test set of real anonymised emails with expected outputs
+Uses Gemini (Google AI Studio), not Claude — see ADR-015 in
+`DECISIONS.md`. Single-tier classification, no paid escalation model for
+low-confidence cases (a deliberate tradeoff of the free tier). Produces
+real `detected_signals` rows; no new UI this phase — `/review` stays on
+Phase 1.5's mock data until 1e (a separate future phase) builds real
+reconciliation against them.
+
+- [ ] Cheap pre-filter (sender/heuristic) before any LLM call —
+      implemented, live verification pending
+- [ ] LLM classification and extraction with Zod-validated JSON output —
+      implemented, live verification pending
+- [ ] Signal types: new subscription, renewal, price change, trial conversion, cancellation —
+      implemented, live verification pending
+- [ ] Cross-inbox deduplication — implemented, live verification pending
+- [ ] Golden-file test set of real anonymised emails with expected
+      outputs — test harness built (`pnpm test:golden`,
+      `tests/golden/fixtures/README.md`), pending the user adding real
+      anonymised fixtures
 
 ### 1e — Reconciliation
 

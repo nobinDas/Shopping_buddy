@@ -32,8 +32,14 @@ live-verified against the real Google Routes API and Places API (New).
 **Phase 5 (redesigned as a standalone Watchlist, ADR-014) is complete** —
 all 4 checklist items, live-verified against the real Google Shopping API
 (via SerpApi), a real price-drop badge confirmed end to end across the
-bottom nav → More → Watchlist. Per ADR-010, LLM-touching phases (1d, 1e)
-are deferred to the end of the build; Microsoft OAuth is likewise
+bottom nav → More → Watchlist. **Phase 1d (Detection) is
+implementation-complete** — real `detected_signals` schema, Gmail
+history.list sync, a pre-filter, Gemini classification/extraction
+(ADR-015, not Claude — free tier), cross-inbox dedup, and a "Sync now"
+trigger on `/accounts`, `pnpm verify` green — live verification against a
+real Gmail account is blocked on the user adding a `GEMINI_API_KEY`.
+Per ADR-010, Phase 1e (Reconciliation) is the one remaining phase, still
+deferred until 1d is live-verified; Microsoft OAuth is likewise
 unscheduled. A mobile-first UI/UX redesign (ADR-009) landed across every
 existing screen earlier.
 **Last updated:** 2026-09-11
@@ -613,17 +619,63 @@ see ADR-014 for the full pivot from Phase 3's per-item Walmart check:
   Two browser-click deletions were flaky again (third time this session,
   same intermittent pattern as Phase 3/4) — fell back to direct SQL
   deletes, **with explicit `🛑 DELETE APPROVAL` first**
-- Not yet committed
+- Committed (`8119647`)
+
+Small real-bug fixes and UI requests after Phase 5, each committed and
+pushed separately (2026-09-11):
+
+- `/more`'s Accounts/Preferred stores/Insurance badges were still Phase
+  1.5's hardcoded mock numbers (`1 NEEDS REAUTH`/`4`/`2`) even after each
+  screen went real — never wired up. Fixed: real counts from
+  `getAllEmailAccounts`/`getAllStores`/`getActivePolicies` (`82d3299`)
+- `/trips` now auto-plans the route on every visit using whichever store
+  addresses are currently represented among outstanding items — no
+  manual "Plan route" button anymore, per explicit request. Deleted the
+  now-dead `trips/actions.ts`/`planRouteAction` (`8eb0fa3`)
+- Bottom nav reordered to Dashboard, Shopping, Subs, Review, More
+  (`f846b23`)
+- Shopping list tabs were drifting — Grocery (seeded first) had ended up
+  last after repeated test-data updates, since `getAllLists` had no
+  `ORDER BY` and the four seeded rows all share one identical `createdAt`
+  (one batch insert), so neither natural row order nor timestamp order
+  was stable. Fixed with an explicit fixed display order in code, not a
+  schema change — list creation isn't a feature (`ca2732a`)
+- New feature: per-list **default stores**. `/settings` gained a Default
+  stores section (Grocery/Household/Personal — One-off deliberately
+  excluded). A new item added with no store chosen falls back to its
+  list's default (`shoppingLists.defaultStore`, migration `0008`); a list
+  with no default shows a banner on `/shopping` pointing at Settings
+  instead of blocking item creation (`f8a60bc`)
 
 ### In progress
 
-Nothing mid-task. Phase 5 is fully implemented, fully live-verified
-against the real Google Shopping API, green, and ready to commit.
+**Phase 1d (Detection) is implementation-complete, `pnpm verify` green
+(187 unit, 77 integration), but not live-verified or committed** —
+blocked on the user adding a `GEMINI_API_KEY` (Google AI Studio, free
+tier — see ADR-015) and, separately, pasting 3–5 real anonymised
+subscription emails into `tests/golden/fixtures/` for the golden-file
+suite. What's built: `detected_signals` schema (migration `0009`),
+`domain/prefilter.ts`/`content-hash.ts`/`dedupe-signals.ts` (all pure,
+unit-tested), a versioned prompt (`prompts/classify-email.ts`),
+`providers/gmail.ts` (Gmail `history.list` incremental sync +
+metadata/body fetch, extending the OAuth-only `providers/google.ts`),
+`providers/gemini.ts` (Zod-validated structured-output classification),
+`services/detection.service.ts#syncAccount` (the real orchestration —
+pre-filter before any full-body fetch or LLM call, per
+`docs/SECURITY.md`), a "Sync now" button per connected account on
+`/accounts`, and a `CRON_SECRET`-protected `/api/cron/sync` route (not
+scheduled yet). **No UI change to `/review`** — that's Phase 1e, still a
+separate future phase; verification for 1d is direct `detected_signals`
+inspection via `execute_sql`, not a browser click-through.
 
 ### Next
 
-After Phase 5's commit: **Phase 1d/1e (LLM detection + reconciliation)**,
-per ADR-010's build order — Phase 5 was the last non-LLM phase.
+Once `GEMINI_API_KEY` exists: click "Sync now" on a real connected
+account, confirm real `detected_signals` rows via `execute_sql`, confirm
+no email content appears in the `pnpm dev` server log, confirm a second
+sync is a no-op. Then commit and push. **Phase 1e (Reconciliation) is
+the one remaining phase** after that, per ADR-010's build order — the
+last of the two LLM-touching phases deferred to the end of the build.
 
 ### Blocked
 
@@ -653,6 +705,16 @@ its rationale and deleting it here.
   diverge for annual renewals near month boundaries.
 - Sync frequency: daily is the assumption. Is it enough to catch a trial
   conversion before it bills?
+- **Gemini free tier and training data** (Phase 1d, ADR-015): classification
+  currently runs on Google AI Studio's free tier, where inputs/outputs may
+  be used to improve Google's models — accepted deliberately "for now,"
+  with an explicit intent to revisit once the development phase is done
+  (switch to a paid tier, which doesn't train on the data). Don't let this
+  become the permanent state by default.
+- **Vercel Cron schedule for `/api/cron/sync`** (Phase 1d): the route
+  handler exists and is `CRON_SECRET`-protected, but no actual schedule is
+  configured (`vercel.json`/dashboard). Turn it on once satisfied with
+  classification accuracy against the golden-file set.
 ---
 
 ## How to update this file
@@ -722,6 +784,52 @@ API calls is blocked on the user setting up a Google Cloud billing
 account and a `GOOGLE_MAPS_API_KEY` — flagged clearly, matching Phase
 1c/3's credential hand-offs. Once that exists: a short follow-up pass to
 verify a real hours lookup and a real route, then Phase 5.
+
+---
+
+### 2026-09-11 — Four post-Phase-5 UI/bug fixes, then Phase 1d (Detection) built
+**Did:** Fixed four real issues found by the user checking the app
+directly: `/more`'s three badges were still Phase 1.5 mock numbers never
+wired to real data (`82d3299`); `/trips` now auto-plans its route on
+every visit instead of needing a manual button click, per explicit
+request (`8eb0fa3`); bottom nav reordered to put Shopping second
+(`f846b23`); and a new per-list default-store setting so items land with
+a sensible store even when none is chosen at creation, with a banner
+nudging toward Settings when a list has no default yet (`f8a60bc`). Along
+the way, fixed a real ordering bug: Grocery's tab had drifted to last
+because `getAllLists` had no `ORDER BY` and the four seeded lists all
+share one identical `createdAt` from a single batch insert — neither
+natural Postgres row order nor timestamp order was actually stable;
+fixed with an explicit fixed display order in code.
+
+Then started Phase 1d (Detection) — the first LLM-touching phase, and by
+far the largest/most security-sensitive one in the build so far. The user
+redirected the classification provider from the `docs/TOOLS.md`-planned
+Claude to Gemini (Google AI Studio) specifically for its free tier —
+researched and confirmed for real (a genuine no-billing tier exists, with
+Zod-compatible structured JSON output) rather than assumed, and the
+two-tier cheap/escalation design was simplified to single-tier-only since
+Gemini Pro isn't free anymore. Built the full pipeline: `detected_signals`
+schema, a vendor-agnostic keyword/sender pre-filter that runs before any
+full-body fetch or LLM call, Gmail `history.list` incremental sync
+(`providers/gmail.ts`, extending the OAuth-only `providers/google.ts`
+from Phase 1c), Gemini classification via a versioned prompt file, a pure
+cross-inbox dedup function, and `services/detection.service.ts#syncAccount`
+tying it together — plus a "Sync now" button on `/accounts` and a
+`CRON_SECRET`-protected (but not yet scheduled) `/api/cron/sync` route.
+`pnpm verify` green (187 unit, 77 integration — 35 new this phase). A
+golden-file test harness (`pnpm test:golden`) exists and skips cleanly
+with no key/fixtures present, ready for the user's real anonymised email
+samples. Full detail in Current State above. Not yet committed — blocked
+on the user adding `GEMINI_API_KEY` for live verification.
+**Decided:** ADR-015 — Gemini over Claude, single-tier with no paid
+escalation, the free-tier training-data tradeoff explicitly accepted "for
+now." Every fork was discussed with the user via `AskUserQuestion` before
+planning, not assumed.
+**Next:** User adds `GEMINI_API_KEY`. Then live-verify (Sync now → real
+`detected_signals` rows confirmed via `execute_sql`, no email content in
+the server log, a repeat sync is a no-op), commit, push. Then Phase 1e
+(Reconciliation) — the last remaining phase.
 
 ---
 

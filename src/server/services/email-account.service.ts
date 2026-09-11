@@ -68,9 +68,8 @@ export async function disconnectAccount(
  * since that's a normal, expected state (docs/PHASES.md 1c: "a clear
  * reconnect path when refresh fails"), not an exceptional one.
  *
- * Not called by anything yet — nothing fetches Gmail messages until
- * Phase 1d exists to need a fresh access token — but built and tested
- * now since it's explicitly scoped to 1c.
+ * Called directly by getValidAccessToken below, whenever a stored token
+ * is expired or close to it.
  */
 export async function refreshAccountToken(
   account: EmailAccountRow,
@@ -92,4 +91,26 @@ export async function refreshAccountToken(
   } catch {
     return updateEmailAccountRow(account.id, { status: 'needs_reauth' }, client);
   }
+}
+
+/**
+ * Returns a ready-to-use, decrypted access token for the account —
+ * refreshing first if the stored one has expired (or is about to, inside
+ * a small buffer, to avoid a token expiring mid-request). Built for
+ * Phase 1d's sync pipeline (services/detection.service.ts), the first
+ * caller that actually needs to make an authenticated Gmail request.
+ */
+export async function getValidAccessToken(
+  account: EmailAccountRow,
+  client: DbClient = db,
+): Promise<string> {
+  const EXPIRY_BUFFER_MS = 60_000;
+  const expiresSoon = account.tokenExpiresAt.getTime() - Date.now() < EXPIRY_BUFFER_MS;
+
+  const current = expiresSoon ? await refreshAccountToken(account, client) : account;
+  if (current.status === 'needs_reauth') {
+    throw new Error(`getValidAccessToken: account ${current.id} needs reauth.`);
+  }
+
+  return decryptToken(current.accessTokenEnc);
 }

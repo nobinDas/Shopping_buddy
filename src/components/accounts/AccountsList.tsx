@@ -20,7 +20,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import type { EmailAccountSummary } from '@/server/db/queries/email-accounts';
-import { disconnectAccountAction } from '@/app/(dashboard)/accounts/actions';
+import {
+  disconnectAccountAction,
+  syncAccountAction,
+  type SyncAccountActionResult,
+} from '@/app/(dashboard)/accounts/actions';
+
+type SyncFeedback = { status: 'syncing' } | SyncAccountActionResult;
 
 const providerLabel: Record<EmailAccountSummary['provider'], string> = {
   google: 'Google',
@@ -42,6 +48,7 @@ const statusTone: Record<EmailAccountSummary['status'], string> = {
 export function AccountsList({ accounts }: { accounts: EmailAccountSummary[] }) {
   const [pendingDisconnect, setPendingDisconnect] = useState<EmailAccountSummary | null>(null);
   const [connectProvider, setConnectProvider] = useState<EmailAccountSummary['provider']>('google');
+  const [syncFeedback, setSyncFeedback] = useState<Record<string, SyncFeedback>>({});
   const [isPending, startTransition] = useTransition();
 
   const needsReauth = accounts.filter((a) => a.status === 'needs_reauth');
@@ -52,6 +59,16 @@ export function AccountsList({ accounts }: { accounts: EmailAccountSummary[] }) 
     setPendingDisconnect(null);
     startTransition(() => {
       void disconnectAccountAction(id);
+    });
+  }
+
+  function syncNow(id: string) {
+    setSyncFeedback((current) => ({ ...current, [id]: { status: 'syncing' } }));
+    startTransition(() => {
+      void (async () => {
+        const result = await syncAccountAction(id);
+        setSyncFeedback((current) => ({ ...current, [id]: result }));
+      })();
     });
   }
 
@@ -83,50 +100,71 @@ export function AccountsList({ accounts }: { accounts: EmailAccountSummary[] }) 
         </div>
       ) : (
         <div className="border-t border-rule">
-          {accounts.map((account) => (
-            <div
-              key={account.id}
-              className="flex items-start justify-between gap-3 border-b border-rule py-3.5"
-            >
-              <div>
-                <p className="mb-1 font-sans text-[15px] font-medium text-ink">
-                  {account.emailAddress}
-                </p>
-                <p className="font-mono text-[11px] text-ink-muted uppercase">
-                  {providerLabel[account.provider]} ·{' '}
-                  {account.lastSyncedAt
-                    ? `LAST SYNC ${format(account.lastSyncedAt, 'd MMM yyyy')}`
-                    : 'NOT SYNCED YET'}
-                </p>
-              </div>
-              {account.status === 'needs_reauth' ? (
-                <div className="flex flex-none gap-3 font-mono text-[11px]">
-                  <a href="/api/auth/google/start" className="text-ink underline">
-                    RECONNECT
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPendingDisconnect(account);
-                    }}
-                    className="text-ink-muted underline"
-                  >
-                    DISCONNECT
-                  </button>
+          {accounts.map((account) => {
+            const feedback = syncFeedback[account.id];
+            return (
+              <div key={account.id} className="border-b border-rule py-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="mb-1 font-sans text-[15px] font-medium text-ink">
+                      {account.emailAddress}
+                    </p>
+                    <p className="font-mono text-[11px] text-ink-muted uppercase">
+                      {providerLabel[account.provider]} ·{' '}
+                      {account.lastSyncedAt
+                        ? `LAST SYNC ${format(account.lastSyncedAt, 'd MMM yyyy')}`
+                        : 'NOT SYNCED YET'}
+                    </p>
+                  </div>
+                  {account.status === 'needs_reauth' ? (
+                    <div className="flex flex-none gap-3 font-mono text-[11px]">
+                      <a href="/api/auth/google/start" className="text-ink underline">
+                        RECONNECT
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingDisconnect(account);
+                        }}
+                        className="text-ink-muted underline"
+                      >
+                        DISCONNECT
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-none items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          syncNow(account.id);
+                        }}
+                        disabled={feedback?.status === 'syncing'}
+                        className="font-mono text-[10px] text-ink underline disabled:opacity-50"
+                      >
+                        {feedback?.status === 'syncing' ? 'SYNCING…' : 'SYNC NOW'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingDisconnect(account);
+                        }}
+                        className={`font-mono text-[10px] tracking-wide ${statusTone[account.status]}`}
+                      >
+                        {statusLabel[account.status]}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPendingDisconnect(account);
-                  }}
-                  className={`flex-none font-mono text-[10px] tracking-wide ${statusTone[account.status]}`}
-                >
-                  {statusLabel[account.status]}
-                </button>
-              )}
-            </div>
-          ))}
+                {feedback && feedback.status !== 'syncing' && (
+                  <p className="mt-1.5 text-[12px] text-ink-muted">
+                    {feedback.status === 'ok'
+                      ? `${String(feedback.result.messagesScanned)} scanned · ${String(feedback.result.signalsCreated)} new signal${feedback.result.signalsCreated === 1 ? '' : 's'}${feedback.result.duplicatesMerged > 0 ? ` · ${String(feedback.result.duplicatesMerged)} duplicate${feedback.result.duplicatesMerged === 1 ? '' : 's'} merged` : ''}.`
+                      : <span className="text-flag">{feedback.message}</span>}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

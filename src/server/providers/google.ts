@@ -5,7 +5,7 @@ import 'server-only';
  * docs/ARCHITECTURE.md's "one adapter per external system" rule. This
  * file is identity/authorization only (getting and refreshing a token,
  * finding out which address it belongs to); actually reading Gmail
- * messages is Phase 1d's providers/gmail.ts, not built yet.
+ * messages is providers/gmail.ts (Phase 1d).
  *
  * Scope requested is gmail.readonly (docs/SECURITY.md's minimum-scope
  * rule) plus openid/email — the latter two grant no extra Gmail access,

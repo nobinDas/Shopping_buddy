@@ -9,6 +9,7 @@ import type {
   preferredStores,
   watchlistItems,
   watchlistPriceHistory,
+  detectedSignals,
 } from '@/server/db/schema';
 
 type NewSubscription = typeof subscriptions.$inferInsert;
@@ -21,6 +22,7 @@ type NewItemPriceHistory = typeof itemPriceHistory.$inferInsert;
 type NewPreferredStore = typeof preferredStores.$inferInsert;
 type NewWatchlistItem = typeof watchlistItems.$inferInsert;
 type NewWatchlistPriceHistory = typeof watchlistPriceHistory.$inferInsert;
+type NewDetectedSignal = typeof detectedSignals.$inferInsert;
 
 /**
  * Builds a valid `subscriptions` insert row with sensible defaults,
@@ -163,6 +165,27 @@ export function buildWatchlistPriceHistory(
     itemId,
     unitPriceMinor: 9900,
     currency: 'USD',
+    ...overrides,
+  };
+}
+
+/**
+ * Builds a valid `detected_signals` insert row. `accountId` has no
+ * default — every caller has a real email account id to attach it to.
+ * `confidence` is a numeric column (string mode in Drizzle), hence the
+ * string default here rather than a plain number.
+ */
+export function buildDetectedSignal(
+  accountId: string,
+  overrides: Partial<NewDetectedSignal> = {},
+): NewDetectedSignal {
+  return {
+    accountId,
+    messageId: 'test-message-id',
+    contentHash: 'test-content-hash',
+    signalType: 'renewal',
+    vendorKey: 'test vendor',
+    confidence: '0.90',
     ...overrides,
   };
 }
