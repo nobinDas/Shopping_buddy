@@ -16,6 +16,24 @@ export interface OutstandingItem extends ShoppingItemRow {
   listName: string;
 }
 
+// The four seeded lists' fixed display order (docs/PHASES.md's own
+// wording: "grocery, household, personal, one-off"). Not derivable from
+// createdAt — they were all seeded in one batch insert, so every row
+// shares the exact same timestamp and sorts arbitrarily by it. There's
+// no list create/rename UI (a deliberate Phase 3 scope cut), so a fixed
+// name order here is simpler and safer than adding a sort-position
+// column and backfilling the four existing rows.
+const LIST_DISPLAY_ORDER = ['Grocery', 'Household', 'Personal', 'One-off'];
+
+function byDisplayOrder(a: ShoppingListRow, b: ShoppingListRow): number {
+  const aIndex = LIST_DISPLAY_ORDER.indexOf(a.name);
+  const bIndex = LIST_DISPLAY_ORDER.indexOf(b.name);
+  if (aIndex === -1 && bIndex === -1) return 0;
+  if (aIndex === -1) return 1;
+  if (bIndex === -1) return -1;
+  return aIndex - bIndex;
+}
+
 /**
  * Fetches every list with its items attached. Two queries + in-memory
  * grouping rather than a join — simpler to reason about at this data
@@ -26,10 +44,13 @@ export async function getAllLists(client: DbClient = db): Promise<ListWithItems[
   const lists = await client.select().from(shoppingLists);
   const items = await client.select().from(shoppingListItems);
 
-  return lists.map((list) => ({
-    ...list,
-    items: items.filter((item) => item.listId === list.id),
-  }));
+  return lists
+    .slice()
+    .sort(byDisplayOrder)
+    .map((list) => ({
+      ...list,
+      items: items.filter((item) => item.listId === list.id),
+    }));
 }
 
 /**

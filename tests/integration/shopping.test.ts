@@ -56,6 +56,57 @@ describe('getAllLists', () => {
       }),
     ).rejects.toThrow();
   });
+
+  it('orders Grocery before One-off regardless of insertion order', async () => {
+    // The four seeded lists share one identical createdAt (one batch
+    // insert), so ordering can't rely on it — this locks in the fixed
+    // display-order sort instead.
+    await expect(
+      db.transaction(async (tx) => {
+        const [oneOff] = await tx
+          .insert(shoppingLists)
+          .values(buildShoppingList({ name: 'One-off' }))
+          .returning();
+        const [grocery] = await tx
+          .insert(shoppingLists)
+          .values(buildShoppingList({ name: 'Grocery' }))
+          .returning();
+        if (!oneOff || !grocery) throw new Error('Insert did not return a row');
+
+        const lists = await getAllLists(tx);
+        const groceryIndex = lists.findIndex((l) => l.id === grocery.id);
+        const oneOffIndex = lists.findIndex((l) => l.id === oneOff.id);
+
+        expect(groceryIndex).toBeLessThan(oneOffIndex);
+
+        tx.rollback();
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('sorts a list with an unrecognized name after the four known ones', async () => {
+    await expect(
+      db.transaction(async (tx) => {
+        const [custom] = await tx
+          .insert(shoppingLists)
+          .values(buildShoppingList({ name: 'Custom' }))
+          .returning();
+        const [grocery] = await tx
+          .insert(shoppingLists)
+          .values(buildShoppingList({ name: 'Grocery' }))
+          .returning();
+        if (!custom || !grocery) throw new Error('Insert did not return a row');
+
+        const lists = await getAllLists(tx);
+        const customIndex = lists.findIndex((l) => l.id === custom.id);
+        const groceryIndex = lists.findIndex((l) => l.id === grocery.id);
+
+        expect(groceryIndex).toBeLessThan(customIndex);
+
+        tx.rollback();
+      }),
+    ).rejects.toThrow();
+  });
 });
 
 describe('insertItem / getItemById / deleteItemRow', () => {
