@@ -13,9 +13,9 @@ interface NavTab {
 // full name still appears as the page heading once you're on the screen.
 const TABS: NavTab[] = [
   { href: '/', label: 'Dashboard', isActive: (p) => p === '/' },
+  { href: '/shopping', label: 'Shopping', isActive: (p) => p === '/shopping' },
   { href: '/subscriptions', label: 'Subs', isActive: (p) => p.startsWith('/subscriptions') },
   { href: '/review', label: 'Review', isActive: (p) => p === '/review' },
-  { href: '/shopping', label: 'Shopping', isActive: (p) => p === '/shopping' },
   {
     href: '/more',
     label: 'More',
