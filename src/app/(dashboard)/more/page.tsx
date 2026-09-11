@@ -1,27 +1,39 @@
 import Link from 'next/link';
 import { signOut } from '../actions';
+import { getWatchlistDropCount } from '@/server/db/queries/watchlist';
 
 /**
  * Entry point for everything not on the primary tab bar (Dashboard,
  * Subscriptions, Review, Shopping). Each row's badge mirrors that screen's
  * own mock data — see docs/DECISIONS.md for why these five screens moved
- * behind "More" instead of staying top-level.
+ * behind "More" instead of staying top-level. Watchlist's badge is real
+ * (Phase 5) — the others stay mock debt, out of scope here.
  */
 const SECTIONS = [
   { href: '/accounts', label: 'Accounts', badge: '1 NEEDS REAUTH', tone: 'text-pending' },
   { href: '/stores', label: 'Preferred stores', badge: '4', tone: 'text-ink-muted' },
   { href: '/insurance', label: 'Insurance', badge: '2', tone: 'text-ink-muted' },
   { href: '/trips', label: 'Trips', badge: '', tone: 'text-ink-muted' },
-  { href: '/watchlist', label: 'Watchlist', badge: '3', tone: 'text-ink-muted' },
   { href: '/settings', label: 'Settings', badge: '', tone: 'text-ink-muted' },
 ] as const;
 
-export default function MorePage() {
+export default async function MorePage() {
+  const watchlistDropCount = await getWatchlistDropCount();
+
   return (
     <main className="flex min-h-screen flex-col px-5 pt-6">
       <p className="pb-4 font-display text-[28px] tracking-tight">More</p>
 
       <div className="border-t border-rule">
+        <Link
+          href="/watchlist"
+          className="flex items-center justify-between border-b border-rule py-4 font-sans text-base text-ink"
+        >
+          Watchlist
+          {watchlistDropCount > 0 && (
+            <span aria-label="A watched item's price dropped" className="size-[6px] rounded-full bg-verified" />
+          )}
+        </Link>
         {SECTIONS.map((section) => (
           <Link
             key={section.href}

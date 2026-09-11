@@ -27,6 +27,69 @@ not actually examined.
 
 ---
 
+## ADR-014 — Phase 3's per-item price-check retired; Phase 5 becomes a standalone Watchlist on Google Shopping
+
+**Date:** 2026-09-11
+**Status:** accepted
+**Context:** Phase 3 built a per-item Walmart price-check on regular
+shopping-list items (`providers/serpapi.ts`'s `searchWalmartPrice`,
+`item_price_history`). Phase 5's original scope built on top of that:
+price-history trend detection, buy-now-or-wait suggestions with a target
+price, a local stock check tied to store trips, all for regular items.
+Talking through Phase 5's plan, the user redirected significantly: regular
+shopping-list items are small, short-lived, one-time buys — never the
+right target for long-term price tracking. Price tracking belongs to a
+separate class of thing entirely: big-ticket items (a TV, a robot vacuum)
+explicitly added to watch over time.
+**Decision:** Phase 3's regular-item price-check is retired —
+`providers/serpapi.ts`, `checkItemPrice`, `checkItemPriceAction`, and the
+`/shopping` magnifier icon + "Priced subtotal" UI are all removed.
+`shoppingListItems.unitPriceMinor`/`currency`/`lastPriceCheckedAt` and the
+historical `item_price_history` rows are **not** migrated or dropped —
+only the application code that used them goes; the data stays, unused,
+rather than being destroyed for a feature retirement (see the project's
+delete/edit-approval rule). In its place: a standalone `watchlist_items` /
+`watchlist_price_history` schema (Phase 5), priced via a new
+`providers/google-shopping.ts` (SerpApi's `google_shopping` engine — same
+account/key as the retired Walmart check, just a different engine),
+picking the **lowest**-priced listing across sellers rather than Phase 3's
+"take the top result." No target price — the only trigger is a price drop
+relative to the item's own previously recorded price
+(`domain/price-trend.ts#didPriceDrop`), surfaced as a two-level nav
+badge (a dot on the bottom nav's More tab → a dot on the Watchlist row
+inside More → the item itself, once opened) rather than a push/email
+alert, since no notification infrastructure exists. "Stock check" is
+scoped to watchlist items only, and is a real precision compromise: Google
+Shopping's API has no dedicated in-stock/out-of-stock field, so "at least
+one priced listing was found" stands in for availability — not a true
+inventory feed, and the UI says "no listing found right now," not "out of
+stock," to avoid overclaiming certainty the data doesn't support.
+**Consequences:** A real feature (per-item Walmart pricing) that was built,
+live-verified, and shipped in Phase 3 is now dead code walking — the
+underlying data isn't lost, but nothing in the app reads or writes it
+again barring a future revival. Anyone reading `schema.ts` cold will see
+`unitPriceMinor`/`item_price_history` on `shoppingListItems` with no
+application code path touching them — worth this ADR existing so that
+reads as a deliberate, explained retirement rather than an oversight.
+The stock-availability signal is genuinely weaker than the checklist's
+original "prevents a wasted trip" framing implied — a listing existing
+online says nothing about whether a specific physical store has it, which
+is a real gap for someone hoping to check before driving somewhere for a
+watchlist purchase (this app doesn't have that granularity at all
+anymore; it never really did for non-Walmart stores, and now it doesn't
+even for Walmart specifically).
+**Alternatives considered:** Reusing shopping-list items with an optional
+target-price field, rather than a separate `watchlist_items` entity —
+rejected by the user as not matching how these items are actually used
+(big, deliberate, long-considered purchases, not grocery-list entries).
+Keeping the Walmart-only price source for the Watchlist too — rejected in
+favor of Google Shopping, since the user explicitly wants the lowest price
+across sellers, not one retailer's price. Dropping the schema/historical
+data along with the code — rejected; there's no reason to destroy real
+collected data for a feature retirement when leaving it costs nothing.
+
+---
+
 ## ADR-013 — Phase 4 redesigned as a continuous, item-level-due-date view instead of discrete deadline-driven trips
 
 **Date:** 2026-09-10

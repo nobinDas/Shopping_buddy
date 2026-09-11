@@ -239,10 +239,12 @@ export const insurancePolicies = pgTable(
 ).enableRLS();
 
 // ── shopping_lists / shopping_list_items / item_price_history ─────────
-// Phase 3. Deliberately narrow: one store (Walmart, via providers/serpapi.ts),
-// price lookups are explicit and per-item — never automatic or bulk, since
-// SerpApi's free tier is rate-limited (250/month, 50/hour). See
-// docs/DECISIONS.md and docs/PHASES.md.
+// Phase 3. The per-item Walmart price-check (providers/serpapi.ts) that
+// once wrote item_price_history rows was retired in favor of a dedicated
+// Watchlist feature in Phase 5 — see docs/DECISIONS.md. unitPriceMinor /
+// currency / lastPriceCheckedAt and the historical item_price_history
+// rows are kept as-is, unused by any code path now, rather than
+// migrated or dropped.
 
 export const shoppingLists = pgTable('shopping_lists', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -369,3 +371,57 @@ export const userSettings = pgTable('user_settings', {
     .defaultNow()
     .$onUpdate(() => new Date()),
 }).enableRLS();
+
+// ── watchlist_items / watchlist_price_history ──────────────────────────
+// Phase 5, redesigned mid-planning — see docs/DECISIONS.md's ADR on
+// retiring Phase 3's per-item Walmart price-check in favor of this
+// standalone watchlist. Deliberately separate from shopping_list_items:
+// these are long-term-tracked, big-ticket items, not short-lived grocery
+// entries — no quantity, no store, no due date. Priced via Google
+// Shopping (providers/google-shopping.ts), not Walmart-only.
+
+export const watchlistItems = pgTable('watchlist_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+
+  // Set true when a price check finds a lower price than the previously
+  // cached one; cleared when /watchlist is opened
+  // (services/watchlist.service.ts#markWatchlistSeen). Read by the nav
+  // badges (BottomNav's More tab, and the Watchlist row inside /more) via
+  // a single count query — cheaper than recomputing "did the last two
+  // prices differ" on every page load.
+  hasPriceDrop: boolean('has_price_drop').notNull().default(false),
+
+  // Cached from the most recent price check, for fast list rendering —
+  // same pattern shoppingListItems.unitPriceMinor already uses. Null
+  // until first checked, not zero — see docs/DESIGN.md.
+  latestPriceMinor: integer('latest_price_minor'),
+  latestCurrency: char('latest_currency', { length: 3 }),
+  latestSellerName: text('latest_seller_name'),
+  lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}).enableRLS();
+
+// Append-only, same convention as price_history/item_price_history —
+// never UPDATEd, only inserted.
+export const watchlistPriceHistory = pgTable(
+  'watchlist_price_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => watchlistItems.id, { onDelete: 'cascade' }),
+
+    unitPriceMinor: integer('unit_price_minor').notNull(),
+    currency: char('currency', { length: 3 }).notNull(),
+    // Which seller Google Shopping attributed the lowest price to — shown
+    // for context, not used in any logic.
+    sellerName: text('seller_name'),
+    productLink: text('product_link'),
+
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('watchlist_price_history_item_id_idx').on(table.itemId)],
+).enableRLS();

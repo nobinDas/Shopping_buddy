@@ -3,11 +3,8 @@ import {
   insertItem,
   updateItemRow,
   deleteItemRow,
-  getItemById,
-  insertItemPriceHistory,
   type ShoppingItemRow,
 } from '@/server/db/queries/shopping';
-import { searchWalmartPrice } from '@/server/providers/serpapi';
 
 export interface ItemInput {
   name: string;
@@ -71,66 +68,4 @@ export async function toggleItemChecked(
 ): Promise<ShoppingItemRow> {
   const checked = !item.checked;
   return updateItemRow(item.id, { checked, checkedAt: checked ? new Date() : null }, client);
-}
-
-export type PriceCheckResult =
-  | { status: 'found'; item: ShoppingItemRow }
-  | { status: 'not_found' }
-  | { status: 'error'; message: string };
-
-/**
- * Checks one item's price against Walmart, via SerpApi
- * (providers/serpapi.ts) — the only place in the app that calls it, and
- * only ever for exactly one item, on an explicit user action. Never
- * called in a loop or on a schedule — see docs/DECISIONS.md: the free
- * tier's rate limit (250/month, 50/hour) makes that actively harmful,
- * not just wasteful.
- *
- * Searches by the item's own `name` — no fuzzy matching against
- * quantity/size this phase (docs/PHASES.md: "deliberately narrow").
- */
-export async function checkItemPrice(
-  itemId: string,
-  client: DbClient = db,
-): Promise<PriceCheckResult> {
-  const item = await getItemById(itemId, client);
-  if (!item) {
-    return { status: 'error', message: 'Item not found.' };
-  }
-
-  let result: Awaited<ReturnType<typeof searchWalmartPrice>>;
-  try {
-    result = await searchWalmartPrice(item.name);
-  } catch (error) {
-    return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'Price lookup failed.',
-    };
-  }
-
-  if (!result) {
-    return { status: 'not_found' };
-  }
-
-  await insertItemPriceHistory(
-    {
-      itemId,
-      unitPriceMinor: result.unitPriceMinor,
-      currency: result.currency,
-      source: 'walmart',
-    },
-    client,
-  );
-
-  const updated = await updateItemRow(
-    itemId,
-    {
-      unitPriceMinor: result.unitPriceMinor,
-      currency: result.currency,
-      lastPriceCheckedAt: new Date(),
-    },
-    client,
-  );
-
-  return { status: 'found', item: updated };
 }

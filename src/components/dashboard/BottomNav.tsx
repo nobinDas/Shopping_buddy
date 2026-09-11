@@ -31,7 +31,7 @@ const TABS: NavTab[] = [
 // what eventually makes this a live count instead of a fixture echo.
 const PENDING_REVIEW_COUNT = 4;
 
-export function BottomNav() {
+export function BottomNav({ hasWatchlistDrop = false }: { hasWatchlistDrop?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -51,6 +51,12 @@ export function BottomNav() {
               {tab.label}
               {tab.href === '/review' && (
                 <span className="font-mono text-[10px] text-pending">{PENDING_REVIEW_COUNT}</span>
+              )}
+              {tab.href === '/more' && hasWatchlistDrop && (
+                <span
+                  aria-label="A watched item's price dropped"
+                  className="size-[6px] rounded-full bg-verified"
+                />
               )}
             </span>
           </Link>

@@ -199,6 +199,14 @@ generalising to comparison across retailers.
 
 **Exit criteria:** a real list priced against a real store with an accurate total.
 
+**Note (2026-09-11):** the per-item price-check built here (Walmart via
+SerpApi) was retired in Phase 5 in favor of a standalone Watchlist feature
+for big-ticket items — see ADR-014 in `DECISIONS.md`. The checklist above
+stays checked because it was genuinely built and live-verified at the
+time; the code path itself no longer exists. `unitPriceMinor`/`currency`/
+`lastPriceCheckedAt` and the historical `item_price_history` rows remain
+in the database, untouched and unused.
+
 ---
 
 ## Phase 4 — Continuous route and duration view
@@ -227,15 +235,38 @@ saved home address and real store addresses.
 
 ---
 
-## Phase 5 — Price timing and stock check
+## Phase 5 — Watchlist: price-drop tracking for big-ticket items
 
-Last because it is the most fragile and depends on price history that only exists
-after Phase 3 has been running for a while.
+Redesigned from the original "price timing and stock check" scope, which
+was built on top of Phase 3's per-item price-check — see ADR-014 in
+`DECISIONS.md`. A watchlist item is a standalone entity (not a shopping
+list item with a target price bolted on): a big, deliberate, long-tracked
+purchase, priced via Google Shopping (lowest price across sellers, not
+one retailer), with no target price — the only trigger is a drop relative
+to the item's own previous recorded price.
 
-- [ ] Price history accumulation and trend detection
-- [ ] Buy-now-or-wait suggestion with a written reason
-- [ ] Local stock check before a trip is finalised
-- [ ] Price-drop watchlist with target-price alerts
+- [x] Standalone watchlist items with price history accumulation
+      (`watchlist_items` / `watchlist_price_history`, independent of
+      shopping lists)
+- [x] Price-drop detection relative to the item's own previous price (no
+      target-price threshold — dropped from the original scope)
+- [x] A two-level nav badge on a drop: a dot on the bottom nav's More tab,
+      a dot on the Watchlist row inside More, cleared once `/watchlist` is
+      opened — no push/email alert (no notification infrastructure exists)
+- [x] A lightweight stock-availability signal for watchlist items only
+      ("a listing was found" — Google Shopping has no dedicated in-stock/
+      out-of-stock field, so this is a real precision limit, not a true
+      inventory feed, and is worded honestly in the UI)
+
+**Exit criteria:** a real watchlist item checked against Google Shopping,
+its price history accumulating across real checks, and a real price drop
+correctly surfacing the two-level nav badge.
+
+**Explicitly not included:** a buy-now-or-wait suggestion with written
+reasoning (dropped along with the target-price concept), and any stock
+check for regular shopping-list items or tied to a specific physical
+store trip (the Walmart-store-specific approach that would have enabled
+that no longer fits — see ADR-014).
 
 **Exit criteria:** a timing suggestion that proves correct in a real purchase, and
 a stock check that prevents a wasted trip.

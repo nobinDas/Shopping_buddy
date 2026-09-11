@@ -50,6 +50,13 @@
       "when": 1789069941302,
       "tag": "0006_uneven_mac_gargan",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789134939308,
+      "tag": "0007_wild_gateway",
+      "breakpoints": true
     }
   ]
 }

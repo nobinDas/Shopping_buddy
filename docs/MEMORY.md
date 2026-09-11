@@ -24,15 +24,19 @@ disconnect/refresh is live and verified against a real Google account —
 OAuth, and incremental sync (`sync_cursor`) — deliberately deferred, see
 below. **Phase 2 (Insurance) is complete** — all 4 checklist items, real
 schema, live-verified. **Phase 3 (Shopping list, single-store price
-check) is complete** — all 5 checklist items, real schema, real SerpApi
-Walmart price lookups, live-verified. **Phase 4 (redesigned as a
-continuous route/duration view, ADR-013) is complete** — all 5 checklist
-items, live-verified against the real Google Routes API and Places API
-(New), real optimized routes and real store hours confirmed end to end.
-Per ADR-010, LLM-touching phases (1d, 1e) are deferred to the end of the
-build; Microsoft OAuth is likewise unscheduled. A mobile-first UI/UX
-redesign (ADR-009) landed across every existing screen earlier.
-**Last updated:** 2026-09-10
+check) is complete, but its per-item Walmart price-check was retired in
+Phase 5** (see below) — the shopping-list CRUD/due-date/store/checked-off
+scope stays real and live. **Phase 4 (redesigned as a continuous
+route/duration view, ADR-013) is complete** — all 5 checklist items,
+live-verified against the real Google Routes API and Places API (New).
+**Phase 5 (redesigned as a standalone Watchlist, ADR-014) is complete** —
+all 4 checklist items, live-verified against the real Google Shopping API
+(via SerpApi), a real price-drop badge confirmed end to end across the
+bottom nav → More → Watchlist. Per ADR-010, LLM-touching phases (1d, 1e)
+are deferred to the end of the build; Microsoft OAuth is likewise
+unscheduled. A mobile-first UI/UX redesign (ADR-009) landed across every
+existing screen earlier.
+**Last updated:** 2026-09-11
 
 ### Done
 
@@ -549,16 +553,77 @@ ADR-013 for the full reasoning:
 - `pnpm verify` green: 150 unit (24 new), 56 integration (9 new)
 - Committed (`bb1519c`, plus a follow-up fix for the `[-1]` bug)
 
+Phase 5 — Watchlist, redesigned mid-planning from "price timing and stock
+check" into a standalone big-ticket-item price-drop tracker (2026-09-11) —
+see ADR-014 for the full pivot from Phase 3's per-item Walmart check:
+
+- New `watchlist_items` / `watchlist_price_history` tables (migration
+  `0007`), fully independent of `shopping_list_items` — no quantity,
+  store, or due date. `domain/price-trend.ts#didPriceDrop` (pure, unit
+  tested). `providers/google-shopping.ts` (new) — SerpApi's
+  `engine=google_shopping`, picks the **minimum**-priced result across
+  sellers (not the top one, a deliberate difference from Phase 3's
+  pattern), doubling as the "was anything found at all" stock-availability
+  proxy since Google Shopping has no dedicated in-stock field
+- `services/watchlist.service.ts`: `checkWatchlistItemPrice` compares a
+  new result against the item's *cached* previous price before
+  overwriting it, sets `hasPriceDrop` on a real drop; `markWatchlistSeen`
+  clears it — fired once when `/watchlist` mounts
+- Real UI: `/watchlist` (list + sparkline, ported from the Phase 1.5
+  mock's `PriceSparkline` component to real data + a "Check price"
+  button), a two-level nav badge — a dot on the bottom nav's More tab
+  (`(dashboard)/layout.tsx` now async, fetches `getWatchlistDropCount()`)
+  → a dot on the Watchlist row inside `/more` — both clearing once
+  `/watchlist` is opened
+- **Phase 3's regular-item price-check fully retired**: deleted
+  `providers/serpapi.ts` and its test outright; removed `checkItemPrice`/
+  `PriceCheckResult` from `shopping.service.ts`, `checkItemPriceAction`
+  from `shopping/actions.ts`, and the magnifier icon + "Priced subtotal"
+  UI from `ShoppingLists.tsx`. `shoppingListItems.unitPriceMinor`/
+  `currency`/`lastPriceCheckedAt` and the historical `item_price_history`
+  rows are deliberately **not** touched — schema and data stay, only the
+  now-dead application code was removed, per the project's delete/
+  edit-approval rule (destroying real collected data for a feature
+  retirement has no upside)
+- **A real bug caught live, not by review**: the ported `PriceSparkline`
+  right-aligns its endpoint price label — fine for the mock's always-6+-
+  point fixture data, but a real item's *first-ever* check has exactly one
+  point at the sparkline's left edge, so the label ("$31.92") clipped to a
+  bare "2" off-canvas. Fixed by anchoring the label from whichever side
+  keeps it on-canvas
+- `pnpm verify` green: 152 unit (9 new), 65 integration (9 new)
+- Live-verified against the real Google Shopping API (via SerpApi): a
+  real item ("iPhone 17 Pro 256GB") returned a real $31.92 listing "at
+  Walmart" — a genuinely mismatched product for that specific a search
+  term, since the provider takes the absolute lowest price with no
+  relevance filtering (the same "deliberately narrow, no fuzzy matching"
+  tradeoff Phase 3 already accepted, now visibly surfaced) — worth the
+  user knowing this is expected behavior, not a bug, if a future check
+  returns something obviously wrong for a very specific/narrow query.
+  Drop-detection and the two-level badge were verified by staging a
+  scenario: an **insert-only** new test row created with `hasPriceDrop`
+  already set (an UPDATE to the real item's cached price was requested
+  first but blocked outright by Claude Code's own auto-mode safety
+  classifier, a separate system guard beyond the user's own approval —
+  worth knowing this exists as a hard floor under the project's own
+  delete/edit-approval rule, not just a soft convention). Confirmed both
+  nav dots appear and both clear together after opening `/watchlist`.
+  Confirmed `/shopping` no longer shows any price-check UI while
+  everything else (add/edit/due-date/store/checked-off) still works.
+  Two browser-click deletions were flaky again (third time this session,
+  same intermittent pattern as Phase 3/4) — fell back to direct SQL
+  deletes, **with explicit `🛑 DELETE APPROVAL` first**
+- Not yet committed
+
 ### In progress
 
-Nothing mid-task. Phase 4 is fully implemented, fully live-verified
-against the real Google Maps Platform APIs (not just the graceful-failure
-paths), green, and committed.
+Nothing mid-task. Phase 5 is fully implemented, fully live-verified
+against the real Google Shopping API, green, and ready to commit.
 
 ### Next
 
-After Phase 4's live verification and commit: **Phase 5 (Price timing and
-stock check)**, per ADR-010's build order (Phase 5 → 1d → 1e).
+After Phase 5's commit: **Phase 1d/1e (LLM detection + reconciliation)**,
+per ADR-010's build order — Phase 5 was the last non-LLM phase.
 
 ### Blocked
 
@@ -657,6 +722,52 @@ API calls is blocked on the user setting up a Google Cloud billing
 account and a `GOOGLE_MAPS_API_KEY` — flagged clearly, matching Phase
 1c/3's credential hand-offs. Once that exists: a short follow-up pass to
 verify a real hours lookup and a real route, then Phase 5.
+
+---
+
+### 2026-09-11 — Phase 5 redesigned and built: standalone Watchlist, Phase 3's price-check retired
+**Did:** Started Phase 5 against the original "price timing and stock
+check" scope (built on Phase 3's per-item Walmart check). The user
+redirected significantly during planning: regular shopping items aren't
+the right target for price tracking — that becomes a new, standalone
+Watchlist for big-ticket items, priced via Google Shopping (lowest price
+across sellers, same SerpApi account as the retired Walmart check, a
+different engine), with no target price — only a drop-vs-previous-price
+trigger, surfaced as a two-level nav badge (bottom nav's More tab →
+Watchlist row inside More) rather than a push notification. Phase 3's
+regular-item price-check (`providers/serpapi.ts`, `checkItemPrice`, the
+`/shopping` magnifier + Priced Subtotal UI) was fully removed — the
+underlying schema and historical price data were deliberately left
+untouched, only the dead application code went. Built the full redesigned
+scope: `watchlist_items`/`watchlist_price_history` (migration `0007`),
+`domain/price-trend.ts`, `providers/google-shopping.ts`,
+`services/watchlist.service.ts`, a real `/watchlist` screen (the mock's
+sparkline ported to real data), and the nav-badge plumbing through
+`(dashboard)/layout.tsx` → `BottomNav.tsx` and `/more`. `pnpm verify`
+green (152 unit, 65 integration). Found and fixed a real sparkline
+clipping bug live (a single-point history's label rendered off-canvas —
+the mock's always-multi-point fixtures never exercised that case).
+Live-verified against the real Google Shopping API: a real price/seller
+came back for a real search (surfacing a real, expected precision
+limitation — a very specific query can match an unrelated cheap listing,
+since the lowest-price selection does no relevance filtering). Verified
+drop-detection and both nav badges via an insert-only staged test row,
+after a direct UPDATE to stage the same test was blocked outright by
+Claude Code's own auto-mode safety classifier. Cleaned up test data via a
+mix of the app's own UI (flaky again, third time this session) and direct
+SQL, the latter only after explicit `🛑 DELETE APPROVAL`. Checked off all
+4 of Phase 5's redesigned checklist items in `PHASES.md`.
+**Decided:** ADR-014 — the full pivot: Phase 3's price-check retired,
+Watchlist as a standalone entity (not shopping items with a target price),
+Google Shopping over Walmart-only, no target price, a nav-badge
+notification model, and a lightweight (listing-presence-based, not a true
+inventory feed) stock signal scoped to watchlist items only. Walked
+through each fork with the user via `AskUserQuestion` before writing the
+plan — not a unilateral redesign.
+**Next:** Commit and push. Then Phase 1d/1e (LLM detection +
+reconciliation), per ADR-010's build order — the last two phases, deferred
+to the end of the build by explicit user request back in ADR-010, and
+Phase 5 was the last non-LLM phase standing in front of them.
 
 ---
 

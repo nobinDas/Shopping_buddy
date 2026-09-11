@@ -1,14 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import {
-  addItem,
-  updateItem,
-  deleteItem,
-  toggleItemChecked,
-  checkItemPrice,
-  type PriceCheckResult,
-} from '@/server/services/shopping.service';
+import { addItem, updateItem, deleteItem, toggleItemChecked } from '@/server/services/shopping.service';
 import { getItemById } from '@/server/db/queries/shopping';
 
 /** `FormData.get` returns `FormDataEntryValue | null` — a text field is a
@@ -70,10 +63,4 @@ export async function toggleItemCheckedAction(id: string): Promise<void> {
   await toggleItemChecked(item);
   revalidatePath('/shopping');
   revalidatePath('/trips');
-}
-
-export async function checkItemPriceAction(id: string): Promise<PriceCheckResult> {
-  const result = await checkItemPrice(id);
-  revalidatePath('/shopping');
-  return result;
 }

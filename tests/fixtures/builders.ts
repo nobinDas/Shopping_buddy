@@ -7,6 +7,8 @@ import type {
   shoppingListItems,
   itemPriceHistory,
   preferredStores,
+  watchlistItems,
+  watchlistPriceHistory,
 } from '@/server/db/schema';
 
 type NewSubscription = typeof subscriptions.$inferInsert;
@@ -17,6 +19,8 @@ type NewShoppingList = typeof shoppingLists.$inferInsert;
 type NewShoppingItem = typeof shoppingListItems.$inferInsert;
 type NewItemPriceHistory = typeof itemPriceHistory.$inferInsert;
 type NewPreferredStore = typeof preferredStores.$inferInsert;
+type NewWatchlistItem = typeof watchlistItems.$inferInsert;
+type NewWatchlistPriceHistory = typeof watchlistPriceHistory.$inferInsert;
 
 /**
  * Builds a valid `subscriptions` insert row with sensible defaults,
@@ -135,6 +139,30 @@ export function buildPreferredStore(overrides: Partial<NewPreferredStore> = {}):
   return {
     name: 'Test Store',
     address: '123 Test St, Testville, TS 00000',
+    ...overrides,
+  };
+}
+
+/** Builds a valid `watchlist_items` insert row. */
+export function buildWatchlistItem(overrides: Partial<NewWatchlistItem> = {}): NewWatchlistItem {
+  return {
+    name: 'Test Watchlist Item',
+    ...overrides,
+  };
+}
+
+/**
+ * Builds a valid `watchlist_price_history` insert row. `itemId` has no
+ * default — every caller has a real watchlist item id to attach it to.
+ */
+export function buildWatchlistPriceHistory(
+  itemId: string,
+  overrides: Partial<NewWatchlistPriceHistory> = {},
+): NewWatchlistPriceHistory {
+  return {
+    itemId,
+    unitPriceMinor: 9900,
+    currency: 'USD',
     ...overrides,
   };
 }
