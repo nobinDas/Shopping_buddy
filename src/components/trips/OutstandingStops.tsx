@@ -10,7 +10,6 @@ import { sortItemsByUrgency, storeUrgency, isOverdue } from '@/server/domain/sho
 import { estimateShoppingMinutes } from '@/server/domain/shopping-duration';
 import type { PlanRouteResult } from '@/server/services/route.service';
 import { deleteItemAction, toggleItemCheckedAction } from '@/app/(dashboard)/shopping/actions';
-import { planRouteAction } from '@/app/(dashboard)/trips/actions';
 import { EditPanel } from '@/components/shopping/ShoppingLists';
 
 const UNASSIGNED_KEY = '__unassigned__';
@@ -61,13 +60,14 @@ function groupByStore(items: OutstandingItem[], stores: PreferredStoreRow[]): St
 export function OutstandingStops({
   items,
   stores,
+  route,
 }: {
   items: OutstandingItem[];
   stores: PreferredStoreRow[];
+  route: PlanRouteResult | null;
 }) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
-  const [route, setRoute] = useState<PlanRouteResult | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const groups = useMemo(() => groupByStore(items, stores), [items, stores]);
@@ -101,17 +101,6 @@ export function OutstandingStops({
     });
   }
 
-  function planRoute() {
-    const storeIds = groups.map((g) => g.store?.id).filter((id): id is string => id !== undefined);
-    if (storeIds.length === 0) return;
-    startTransition(() => {
-      void (async () => {
-        const result = await planRouteAction(storeIds);
-        setRoute(result);
-      })();
-    });
-  }
-
   const totalDriveMinutes =
     route?.status === 'planned' ? route.legMinutes.reduce((sum, m) => sum + m, 0) : 0;
   const totalShopMinutes = groups.reduce(
@@ -121,34 +110,24 @@ export function OutstandingStops({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between border border-rule bg-surface-2 px-4 py-3">
-        <div>
-          <p className="font-mono text-[10px] tracking-widest text-ink-muted uppercase">Route</p>
-          {route?.status === 'planned' ? (
-            <p className="font-mono text-sm text-ink">
-              {totalDriveMinutes + totalShopMinutes} min total ({totalDriveMinutes} min driving)
-            </p>
-          ) : (
-            <p className="font-mono text-sm text-ink-muted">Not planned yet</p>
-          )}
-          {route?.status === 'missing_home_address' && (
-            <p className="mt-1 text-xs text-flag">Set a home address on Settings first.</p>
-          )}
-          {route?.status === 'missing_store_address' && (
-            <p className="mt-1 text-xs text-flag">
-              Missing an address for: {route.storeNames.join(', ')}.
-            </p>
-          )}
-          {route?.status === 'error' && <p className="mt-1 text-xs text-flag">{route.message}</p>}
-        </div>
-        <button
-          type="button"
-          onClick={planRoute}
-          disabled={isPending}
-          className="flex-none bg-ink px-3.5 py-2 font-sans text-[13px] font-medium text-surface disabled:opacity-60"
-        >
-          Plan route
-        </button>
+      <div className="mb-4 border border-rule bg-surface-2 px-4 py-3">
+        <p className="font-mono text-[10px] tracking-widest text-ink-muted uppercase">Route</p>
+        {route?.status === 'planned' ? (
+          <p className="font-mono text-sm text-ink">
+            {totalDriveMinutes + totalShopMinutes} min total ({totalDriveMinutes} min driving)
+          </p>
+        ) : (
+          <p className="font-mono text-sm text-ink-muted">
+            {route === null ? 'No store addresses to route through yet.' : 'Not planned yet'}
+          </p>
+        )}
+        {route?.status === 'missing_home_address' && (
+          <p className="mt-1 text-xs text-flag">Set a home address on Settings first.</p>
+        )}
+        {route?.status === 'missing_store_address' && (
+          <p className="mt-1 text-xs text-flag">Missing an address for: {route.storeNames.join(', ')}.</p>
+        )}
+        {route?.status === 'error' && <p className="mt-1 text-xs text-flag">{route.message}</p>}
       </div>
 
       {orderedGroups.map((group) => {
