@@ -50,6 +50,43 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-09-14 — Sonnet can return a response with zero text blocks, silently dropping a message from sync
+**Context:** Live-verifying the new "needs review" brief feature
+(ADR-018) by deleting and re-syncing 3 real signals. Xfinity and Tello
+went through the full new pipeline correctly. The Gas South email — a
+rate-plan-change notice — failed with `callModel: claude-sonnet-5
+returned no text block`, both in the live sync and reproduced 3/3 times
+against the real API directly afterward.
+**What I thought:** This code path (Haiku → Sonnet escalation) was
+already well-exercised by 25 golden fixtures and a prior successful live
+sync of this exact email months earlier — a "no text block" response
+looked like it should be rare enough to not matter in practice, and the
+existing catch-and-skip handling seemed like sufficient defense.
+**What was actually true:** It's reproducible, not a one-off fluke, for
+at least this one real email — 3/3 direct calls against the real API.
+`MAX_OUTPUT_TOKENS` was 512 for every call, including Sonnet's, and
+Sonnet 5's adaptive thinking (already noted in ADR-017 as having
+replaced manual sampling controls) was consuming that whole budget
+internally on this longer/more structurally complex email, leaving
+nothing for the actual JSON output. Confirmed, not just hypothesized:
+splitting the constant into `HAIKU_MAX_OUTPUT_TOKENS = 512` (unchanged)
+and `SONNET_MAX_OUTPUT_TOKENS = 2048` eliminated the failure 3/3 on
+re-test, and the full pipeline (classification + the new
+`writeReviewBrief` call) then produced a correct result for this exact
+email on the first try.
+**Why it matters:** "Discard and skip on failure" (the pattern this
+codebase already uses everywhere for untrusted model output) is the
+right response to a validation failure, but a response with literally no
+text isn't the same failure mode as a malformed one — it's silent data
+loss for a message that would otherwise have been correctly detected,
+with no signal to the user that anything was missed at all. A low,
+shared `max_tokens` budget across models with very different output
+strategies (fixed-format extraction vs. adaptive thinking) is a
+narrower assumption than it looks — the fix was giving each model its
+own budget, not raising a single shared one and hoping it's enough for
+both.
+**Portfolio-worthy:** yes
+
 ### 2026-09-14 — A single vendor name broke date extraction on an otherwise-identical email, proven by a swap test
 **Context:** Even after the transcription fix (2026-09-13 entry below), two
 golden fixtures — both INR-denominated — kept intermittently returning

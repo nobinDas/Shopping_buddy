@@ -84,9 +84,9 @@ dates are extracted as verbatim text and parsed deterministically in code
 (`domain/parse-amount-span.ts`, `domain/parse-date-span.ts`), not
 computed by the model. The original ADR-016 model choice (Claude over
 Gemini/Ollama) is unaffected and still stands. Produces real
-`detected_signals` rows; no new UI this phase — `/review` stays on Phase
-1.5's mock data until 1e (a separate future phase) builds real
-reconciliation against them.
+`detected_signals` rows; `/review` otherwise stays on Phase 1.5's mock
+data until 1e (a separate future phase) builds real reconciliation
+against them — with one deliberate, narrow exception, see ADR-018.
 
 - [x] Cheap pre-filter (sender/heuristic) before any LLM call —
       live-verified 2026-09-14: a real first sync scanned 50 messages
@@ -128,6 +128,69 @@ reconciliation against them.
       duplicates), and the dev server log confirmed to contain zero
       email subject/body/content anywhere — only route timing and the
       account id.
+- [x] **Needs-review brief + Gmail deep-link for unclear-extraction
+      signals (2026-09-14, ADR-018)** — a deliberate, narrow real-UI
+      exception to "no new UI until 1e," built because the live sync
+      above produced 3 real signals with amount/currency/billingDate all
+      null even after Sonnet escalation. A new Sonnet-only call
+      (`providers/anthropic.ts#writeReviewBrief`) writes a short
+      paraphrased brief + an `actionRequired` flag whenever a signal's
+      extraction comes back fully null (cancellations included), stored
+      on the signal itself and surfaced on `/review`. Initially built as
+      its own visually separate section; merged into one unified,
+      date-sorted list (`components/review/ReviewList.tsx`) alongside the
+      mock proposal cards the same day, on direct user request — see
+      ADR-018's trailing note. Every card now gets "Go to email" (real
+      link for needs-review signals; a placeholder, explicitly-not-real
+      message id for the 6 mock proposals, added for visual consistency
+      only). "Archive" (the only action that moves a needs-review card
+      from pending → resolved; resolved rows stop appearing after one
+      month but are never deleted) is unique to needs-review cards; mock
+      cards keep their existing Accept/Reject. `pnpm verify` green
+      (219 unit + 80 integration tests). **Live re-verification
+      (2026-09-14):** the 3 original rows were deleted under explicit
+      🛑 DELETE APPROVAL, the account disconnected and reconnected (to
+      force a fresh first-sync scan, since Gmail's history-based
+      incremental sync only returns messages new since the last
+      historyId — deleting a `detected_signals` row doesn't make Gmail
+      consider its message "new" again), and re-synced from scratch.
+      Xfinity and Tello went through the full new pipeline correctly:
+      real Sonnet-written briefs rendered on `/review`, "Go to email"
+      opened the correct real Gmail message without changing status,
+      "Archive" moved Xfinity to the resolved list. Gas South hit a
+      separate, pre-existing bug (see below) that blocked it from this
+      same browser-driven verification; after the fix, its
+      classification + brief generation were re-confirmed correct via a
+      direct call to the same `classifyEmail`/`writeReviewBrief`
+      functions `syncAccount` uses (not re-run through the full
+      disconnect/reconnect + browser click-through, to avoid asking for
+      a third real Google OAuth consent screen in one session) — the UI
+      rendering path itself was already proven correct by Xfinity and
+      Tello using the identical component.
+- [x] **Found and fixed live (2026-09-14): Sonnet sometimes returned a
+      response with no text block at all**, surfaced by the Gas South
+      email specifically — `callModel` threw `"claude-sonnet-5 returned
+      no text block"` (this exact guard already existed before this
+      session's changes; this was the first time it was observed to
+      actually fire). Reproduced 100% (3/3) directly against the real
+      API for this message before the fix. Root cause: `MAX_OUTPUT_TOKENS`
+      was 512 for every call including Sonnet's, and Sonnet 5's adaptive
+      thinking (docs/DECISIONS.md ADR-017 already notes it replaced
+      manual sampling controls) was consuming that whole budget
+      internally on this email, leaving nothing for the actual JSON
+      output. Fixed by splitting the constant — `HAIKU_MAX_OUTPUT_TOKENS
+      = 512` (unchanged, Haiku has no adaptive-thinking step), 
+      `SONNET_MAX_OUTPUT_TOKENS = 2048` — in `providers/anthropic.ts`.
+      Re-verified 3/3 directly against the real API post-fix (no more
+      "no text block" errors), then re-ran the full pipeline
+      (classification + the new `writeReviewBrief`) for this exact
+      email: correctly classified as `price_change` with amount/
+      currency/billingDate still null (the real unclear-extraction
+      case), and produced an accurate brief — "rate plan expiring,
+      choose a new plan before September 30, 2026 or be moved to a
+      variable rate", `actionRequired: true` — matching the real
+      email's content exactly. `pnpm verify` green after the fix
+      (219 unit + 80 integration tests, unchanged).
 - [x] **Remove LangSmith tracing before touching a real inbox
       (2026-09-13, removed 2026-09-14)** — was wired into
       `providers/anthropic.ts` for local debugging only (full

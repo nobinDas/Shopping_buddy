@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseClassificationResponse } from '@/server/providers/anthropic';
+import { parseClassificationResponse, parseReviewBriefResponse } from '@/server/providers/anthropic';
 
 describe('parseClassificationResponse', () => {
   it('extracts a valid relevant classification, parsing the verbatim date and amount spans', () => {
@@ -157,5 +157,41 @@ describe('parseClassificationResponse', () => {
       confidence: 0.9,
     });
     expect(result?.billingDate).toBe('2026-10-01');
+  });
+});
+
+describe('parseReviewBriefResponse', () => {
+  it('extracts a valid brief', () => {
+    const result = parseReviewBriefResponse({
+      summary: 'A one-time payment of $0.29 was received on this account.',
+      actionRequired: false,
+    });
+    expect(result).toEqual({
+      summary: 'A one-time payment of $0.29 was received on this account.',
+      actionRequired: false,
+    });
+  });
+
+  it('extracts a brief where action is required', () => {
+    const result = parseReviewBriefResponse({
+      summary: 'Your rate plan is expiring and a new plan must be chosen before September 30, 2026.',
+      actionRequired: true,
+    });
+    expect(result?.actionRequired).toBe(true);
+  });
+
+  it('returns null when summary is missing', () => {
+    const result = parseReviewBriefResponse({ actionRequired: false });
+    expect(result).toBeNull();
+  });
+
+  it('returns null when actionRequired is missing', () => {
+    const result = parseReviewBriefResponse({ summary: 'Something happened.' });
+    expect(result).toBeNull();
+  });
+
+  it('returns null for malformed data', () => {
+    expect(parseReviewBriefResponse(null)).toBeNull();
+    expect(parseReviewBriefResponse('not an object')).toBeNull();
   });
 });

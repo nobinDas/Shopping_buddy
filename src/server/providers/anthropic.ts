@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { CLASSIFY_EMAIL_SYSTEM_PROMPT } from '@/server/prompts/classify-email';
+import { WRITE_REVIEW_BRIEF_SYSTEM_PROMPT } from '@/server/prompts/write-review-brief';
 import { parseDateSpan } from '@/server/domain/parse-date-span';
 import { parseAmountSpan } from '@/server/domain/parse-amount-span';
 
@@ -30,7 +31,15 @@ import { parseAmountSpan } from '@/server/domain/parse-amount-span';
 
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 const SONNET_MODEL = 'claude-sonnet-5';
-const MAX_OUTPUT_TOKENS = 512;
+// Haiku doesn't do adaptive thinking, so 512 is plenty for its fixed-shape
+// JSON output. Sonnet 5's adaptive thinking draws from the same max_tokens
+// budget as its visible output — on a longer/more complex email it can
+// spend the whole 512 thinking internally and return zero text blocks
+// (docs/LEARNED.md, 2026-09-14, reproduced 3/3 on a real email). A higher
+// ceiling for Sonnet leaves it room to finish thinking and still write the
+// actual (short) answer — this does not ask it to write more.
+const HAIKU_MAX_OUTPUT_TOKENS = 512;
+const SONNET_MAX_OUTPUT_TOKENS = 2048;
 const PER_CALL_TIMEOUT_MS = 30_000;
 
 const ClassificationSchema = z.object({
@@ -119,21 +128,18 @@ function tryParseJson(text: string): unknown {
   }
 }
 
+/**
+ * Low-level structured-output call, shared by classifyEmail and
+ * writeReviewBrief — same model/timeout/determinism handling regardless
+ * of which schema or system prompt is in play.
+ */
 async function callModel(
   client: Anthropic,
   model: string,
-  input: { subject: string; from: string; body: string; receivedAt: string },
+  system: string,
+  userMessage: string,
+  schema: z.ZodType,
 ): Promise<unknown> {
-  // Anchor relative-date reasoning ("ends in 3 days") to when this
-  // specific email actually arrived (Gmail's own internalDate — see
-  // providers/gmail.ts#parseBodyResponse), not the machine clock at sync
-  // time. A backlog sync could process a week-old email hours or days
-  // after it arrived; the system clock at that moment has nothing to do
-  // with what "in 3 days" meant when the email was sent. The static
-  // prompt text stays call-independent per docs/TOOLS.md; this line is
-  // appended per call instead, since it varies per email.
-  const dateContext = `This email was received on ${input.receivedAt}.`;
-
   // Deterministic sampling so the same input gives the same output run to
   // run — as deterministic as the API allows; confirmed live that even
   // temperature: 0 has some residual run-to-run variance (docs/LEARNED.md,
@@ -143,32 +149,39 @@ async function callModel(
   // its adaptive thinking replaced manual sampling controls, and there's
   // currently no equivalent determinism knob exposed for it.
   const temperatureOptions = model === HAIKU_MODEL ? { temperature: 0 as const } : {};
+  const maxTokens = model === HAIKU_MODEL ? HAIKU_MAX_OUTPUT_TOKENS : SONNET_MAX_OUTPUT_TOKENS;
 
   const message = await client.messages.create({
     model,
-    max_tokens: MAX_OUTPUT_TOKENS,
+    max_tokens: maxTokens,
     ...temperatureOptions,
-    system: `${CLASSIFY_EMAIL_SYSTEM_PROMPT}\n\n${dateContext}`,
-    messages: [
-      {
-        role: 'user',
-        content: `Subject: ${input.subject}\nFrom: ${input.from}\n\n${input.body}`,
-      },
-    ],
+    system,
+    messages: [{ role: 'user', content: userMessage }],
     // Native structured output (not tool-use) — the SDK constrains
     // decoding to this schema, so the response text is guaranteed valid
-    // JSON matching it. zodOutputFormat reuses ClassificationSchema
-    // directly rather than hand-authoring a parallel JSON Schema.
-    output_config: { format: zodOutputFormat(ClassificationSchema) },
+    // JSON matching it.
+    output_config: { format: zodOutputFormat(schema) },
   }, { timeout: PER_CALL_TIMEOUT_MS });
 
   const textBlock = message.content.find(
     (block): block is Anthropic.TextBlock => block.type === 'text',
   );
   if (!textBlock) {
-    throw new Error(`classifyEmail: ${model} returned no text block.`);
+    throw new Error(`callModel: ${model} returned no text block.`);
   }
   return tryParseJson(textBlock.text);
+}
+
+function buildEmailUserMessage(input: { subject: string; from: string; body: string }): string {
+  return `Subject: ${input.subject}\nFrom: ${input.from}\n\n${input.body}`;
+}
+
+function getClient(): Anthropic {
+  const apiKey = process.env['ANTHROPICS_API_KEY'];
+  if (!apiKey) {
+    throw new Error('ANTHROPICS_API_KEY is not set.');
+  }
+  return new Anthropic({ apiKey, maxRetries: 3 });
 }
 
 /**
@@ -240,13 +253,21 @@ export async function classifyEmail(input: {
   body: string;
   receivedAt: string;
 }): Promise<ClassificationResult | null> {
-  const apiKey = process.env['ANTHROPICS_API_KEY'];
-  if (!apiKey) {
-    throw new Error('ANTHROPICS_API_KEY is not set.');
-  }
-  const client = new Anthropic({ apiKey, maxRetries: 3 });
+  const client = getClient();
 
-  const haikuData = await callModel(client, HAIKU_MODEL, input);
+  // Anchor relative-date reasoning ("ends in 3 days") to when this
+  // specific email actually arrived (Gmail's own internalDate — see
+  // providers/gmail.ts#parseBodyResponse), not the machine clock at sync
+  // time. A backlog sync could process a week-old email hours or days
+  // after it arrived; the system clock at that moment has nothing to do
+  // with what "in 3 days" meant when the email was sent. The static
+  // prompt text stays call-independent per docs/TOOLS.md; this line is
+  // appended per call instead, since it varies per email.
+  const dateContext = `This email was received on ${input.receivedAt}.`;
+  const system = `${CLASSIFY_EMAIL_SYSTEM_PROMPT}\n\n${dateContext}`;
+  const userMessage = buildEmailUserMessage(input);
+
+  const haikuData = await callModel(client, HAIKU_MODEL, system, userMessage, ClassificationSchema);
   const haikuRaw = ClassificationSchema.safeParse(haikuData);
   const haikuResult = parseClassificationResponse(haikuData);
 
@@ -259,7 +280,7 @@ export async function classifyEmail(input: {
     return haikuResult;
   }
 
-  const sonnetData = await callModel(client, SONNET_MODEL, input);
+  const sonnetData = await callModel(client, SONNET_MODEL, system, userMessage, ClassificationSchema);
   const sonnetRaw = ClassificationSchema.safeParse(sonnetData);
   if (sonnetRaw.success) {
     return parseClassificationResponse(sonnetData);
@@ -268,4 +289,48 @@ export async function classifyEmail(input: {
   // is schema-guaranteed) — fall back to Haiku's own take rather than
   // discarding a real signal outright, if Haiku's at least validated.
   return haikuRaw.success ? haikuResult : null;
+}
+
+const ReviewBriefSchema = z.object({
+  summary: z.string(),
+  actionRequired: z.boolean(),
+});
+
+export interface ReviewBrief {
+  summary: string;
+  actionRequired: boolean;
+}
+
+/** Pure — unit-tested directly against fixture JSON, same convention as parseClassificationResponse. */
+export function parseReviewBriefResponse(data: unknown): ReviewBrief | null {
+  const parsed = ReviewBriefSchema.safeParse(data);
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Called only when a classified signal's amountMinor/currency/billingDate
+ * all came back null (docs/DECISIONS.md ADR-018) — writes a short
+ * paraphrased brief of what the email says instead of leaving a bare null
+ * row. Always Sonnet: this case is already established as needing the
+ * stronger model (it's exactly the shape Haiku+Sonnet's classification
+ * escalation already failed to extract structured data from). Discard-
+ * and-return-null on any failure, same pattern as classifyEmail — the
+ * caller inserts the signal either way, just without a brief.
+ */
+export async function writeReviewBrief(input: {
+  subject: string;
+  from: string;
+  body: string;
+}): Promise<ReviewBrief | null> {
+  const client = getClient();
+  const userMessage = buildEmailUserMessage(input);
+
+  const data = await callModel(
+    client,
+    SONNET_MODEL,
+    WRITE_REVIEW_BRIEF_SYSTEM_PROMPT,
+    userMessage,
+    ReviewBriefSchema,
+  );
+  return parseReviewBriefResponse(data);
 }

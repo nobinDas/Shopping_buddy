@@ -6,6 +6,8 @@ import {
   insertDetectedSignal,
   getPendingSignalsForAccount,
   markSignalDuplicate,
+  getNeedsReviewSignals,
+  archiveSignal,
 } from '@/server/db/queries/detection';
 import { buildEmailAccount, buildDetectedSignal } from '../fixtures/builders';
 
@@ -74,6 +76,92 @@ describe('getPendingSignalsForAccount / markSignalDuplicate', () => {
 
         const pending = await getPendingSignalsForAccount(account.id, tx);
         expect(pending.map((s) => s.id)).toEqual([survivor.id]);
+
+        tx.rollback();
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+describe('getNeedsReviewSignals / archiveSignal', () => {
+  it('"pending" returns only pending signals that have a review brief', async () => {
+    await expect(
+      db.transaction(async (tx) => {
+        const account = await createTestAccount(tx);
+
+        const withBrief = await insertDetectedSignal(
+          buildDetectedSignal(account.id, {
+            messageId: 'm1',
+            amountMinor: null,
+            currency: null,
+            billingDate: null,
+            reviewBrief: 'A one-time payment was received.',
+            actionRequired: false,
+          }),
+          tx,
+        );
+        await insertDetectedSignal(
+          buildDetectedSignal(account.id, { messageId: 'm2', amountMinor: 999, currency: 'USD' }),
+          tx,
+        );
+        if (!withBrief) throw new Error('Insert did not return a row');
+
+        const needsReview = await getNeedsReviewSignals('pending', tx);
+        expect(needsReview.map((s) => s.id)).toEqual([withBrief.id]);
+
+        tx.rollback();
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('archiveSignal moves a signal from pending to dismissed and sets resolvedAt', async () => {
+    await expect(
+      db.transaction(async (tx) => {
+        const account = await createTestAccount(tx);
+        const signal = await insertDetectedSignal(
+          buildDetectedSignal(account.id, { messageId: 'm1', reviewBrief: 'Something happened.' }),
+          tx,
+        );
+        if (!signal) throw new Error('Insert did not return a row');
+
+        await archiveSignal(signal.id, tx);
+
+        const [updated] = await tx.select().from(detectedSignals).where(eq(detectedSignals.id, signal.id));
+        expect(updated?.status).toBe('dismissed');
+        expect(updated?.resolvedAt).not.toBeNull();
+
+        tx.rollback();
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('"resolved" only returns signals archived within the last month', async () => {
+    await expect(
+      db.transaction(async (tx) => {
+        const account = await createTestAccount(tx);
+
+        const recentlyResolved = await insertDetectedSignal(
+          buildDetectedSignal(account.id, {
+            messageId: 'm1',
+            reviewBrief: 'Recently archived.',
+            status: 'dismissed',
+            resolvedAt: new Date(),
+          }),
+          tx,
+        );
+        await insertDetectedSignal(
+          buildDetectedSignal(account.id, {
+            messageId: 'm2',
+            reviewBrief: 'Archived two months ago.',
+            status: 'dismissed',
+            resolvedAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+          }),
+          tx,
+        );
+        if (!recentlyResolved) throw new Error('Insert did not return a row');
+
+        const resolved = await getNeedsReviewSignals('resolved', tx);
+        expect(resolved.map((s) => s.id)).toEqual([recentlyResolved.id]);
 
         tx.rollback();
       }),

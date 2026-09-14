@@ -62,10 +62,27 @@ outside the app, but the local row still said "active" — fixed via a
 🛑-approved disconnect and fresh reconnect). Cross-inbox dedup is the one
 piece still genuinely unverified live — it needs a second connected
 inbox, which doesn't exist yet; everything else in the pipeline is now
-proven against real data, not just fixtures. Per ADR-010, Phase 1e
-(Reconciliation) is the one remaining phase; Microsoft OAuth is likewise
-unscheduled. A mobile-first UI/UX redesign (ADR-009) landed across every
-existing screen earlier.
+proven against real data, not just fixtures. **A narrow real slice of
+`/review` (ADR-018) is also built and live-verified**: when a signal's
+amount/currency/billingDate all come back null, a Sonnet-only call writes
+a short paraphrased brief + action-required flag. Rendered in
+`components/review/ReviewList.tsx`, one unified, date-sorted Pending/
+Resolved list mixing these real signals with the still-mock proposal
+cards (the two started as separate sections, merged into one the same
+day on direct user request) — every card shows "Go to email" (real for
+needs-review signals; an explicitly-placeholder id for the 6 mock
+proposals, for visual consistency only), and needs-review cards
+additionally get "Archive". `/review`'s mock cards themselves stay mock
+data until Phase 1e. Live-verified via the browser for 2 of the 3 real
+unclear-extraction emails found in the prior session (Xfinity, Tello);
+the third (Gas South) surfaced and led to fixing a real bug — Sonnet
+could return a response with zero text blocks when its adaptive thinking
+consumed the whole shared token budget (`LEARNED.md`, 2026-09-14) — now
+fixed with a per-model token budget and re-confirmed correct directly
+against the real API. Per
+ADR-010, Phase 1e (Reconciliation) is the one remaining full phase;
+Microsoft OAuth is likewise unscheduled. A mobile-first UI/UX redesign
+(ADR-009) landed across every existing screen earlier.
 **Last updated:** 2026-09-14
 
 ### Done
@@ -838,6 +855,61 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-14 — Needs-review brief + Gmail deep-link built and live-verified (ADR-018)
+**Did:** The prior session's live sync left 3 real `detected_signals` rows
+(Xfinity, Gas South, Tello) with amount/currency/billingDate all null even
+after Sonnet escalation — real subscription-relevant emails (a one-time
+payment, a rate-change deadline notice, a tabular invoice) that don't fit
+the standard renewal shape. Built a narrow real slice on `/review`
+(ADR-018): a new Sonnet-only call (`providers/anthropic.ts#writeReviewBrief`,
+`prompts/write-review-brief.ts`) writes a short paraphrased brief +
+`actionRequired` flag whenever a signal's extraction comes back fully
+null (cancellations included, per explicit direction), wired into
+`syncAccount` right where `body` is already in scope so no second Gmail
+fetch is needed. New nullable columns (`review_brief`, `action_required`,
+`resolved_at`) on `detected_signals` (additive migration `0010`). Built
+the real signals as their own visually separate section at first
+(`NeedsReviewSection.tsx` next to a renamed `ReviewProposalTabs.tsx`) —
+then, on direct same-day follow-up request, merged both into one
+`components/review/ReviewList.tsx`: a single, date-sorted Pending/
+Resolved list mixing real needs-review signals and mock proposal cards
+together, with "Go to email" extended to every card (a real Gmail deep
+link for needs-review signals; an explicitly-placeholder, non-resolving
+message id added to the 6 mock proposals purely for visual consistency —
+on record as a known stub, not a bug) and "Archive" kept unique to
+needs-review cards (mock cards keep their existing Accept/Reject).
+`u/0` is hardcoded in the Gmail link — no per-account login-slot field
+exists to compute it from. `pnpm verify` green (219 unit, 80 integration)
+after both the initial build and the merge.
+**Live re-verification:** deleted the 3 original rows under explicit 🛑
+DELETE APPROVAL, then discovered deleting a row doesn't make Gmail's
+history-based incremental sync treat its message as "new" again — had to
+disconnect and reconnect the account (🛑 DELETE APPROVAL on that row too)
+to force a real first-sync rescan. Xfinity and Tello went through the
+full new pipeline correctly end to end in the browser: real briefs
+rendered, "Go to email" opened the correct real Gmail message without
+changing status, "Archive" moved a card to the resolved list correctly.
+Gas South hit a separate, newly-found bug — see `LEARNED.md`'s
+2026-09-14 "Sonnet can return zero text blocks" entry — reproduced 3/3
+directly against the real API. Root cause confirmed: `MAX_OUTPUT_TOKENS`
+was a single 512 budget shared by both models, and Sonnet's adaptive
+thinking was consuming all of it internally on this email before writing
+any output. Fixed by splitting it into `HAIKU_MAX_OUTPUT_TOKENS = 512`
+(unchanged) and `SONNET_MAX_OUTPUT_TOKENS = 2048` in
+`providers/anthropic.ts` — re-verified 3/3 with no more failures, then
+re-ran the full classification + brief-generation pipeline for the exact
+same email and got a correct result: `price_change`, still null amount/
+date (the real unclear-extraction case), and an accurate brief flagging
+the September 30 2026 plan-choice deadline with `actionRequired: true`.
+`pnpm verify` stayed green throughout (219 unit, 80 integration).
+**Decided:** ADR-018 — a deliberate, narrow exception to "no new UI on
+`/review` until Phase 1e," scoped to exactly this unclear-extraction case,
+written up with its own consequences and alternatives considered.
+**Next:** Phase 1e (Reconciliation) is the next full phase. Nothing
+outstanding from this session.
 
 ---
 

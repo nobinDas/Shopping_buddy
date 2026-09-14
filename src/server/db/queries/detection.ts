@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import { db, type DbClient } from '@/server/db';
 import { detectedSignals } from '@/server/db/schema';
 
@@ -42,5 +42,49 @@ export async function markSignalDuplicate(
   await client
     .update(detectedSignals)
     .set({ status: 'merged_duplicate', supersededBy })
+    .where(eq(detectedSignals.id, id));
+}
+
+/**
+ * Real "needs review" signals for /review's needs-review section
+ * (docs/DECISIONS.md ADR-018) — deliberately separate from the mock
+ * proposal cards on that page. 'pending': still awaiting the user, has a
+ * brief. 'resolved': archived within the last month — an older archived
+ * row stays in the table (nothing auto-deletes) but stops being queried,
+ * per the 1-month display window.
+ */
+export async function getNeedsReviewSignals(
+  reviewStatus: 'pending' | 'resolved',
+  client: DbClient = db,
+): Promise<DetectedSignalRow[]> {
+  if (reviewStatus === 'pending') {
+    return client
+      .select()
+      .from(detectedSignals)
+      .where(and(eq(detectedSignals.status, 'pending'), isNotNull(detectedSignals.reviewBrief)))
+      .orderBy(desc(detectedSignals.createdAt));
+  }
+  return client
+    .select()
+    .from(detectedSignals)
+    .where(
+      and(
+        eq(detectedSignals.status, 'dismissed'),
+        isNotNull(detectedSignals.resolvedAt),
+        gte(detectedSignals.resolvedAt, sql`now() - interval '1 month'`),
+      ),
+    )
+    .orderBy(desc(detectedSignals.resolvedAt));
+}
+
+/**
+ * Archives one needs-review card — the only action that moves a signal
+ * from the pending list to the resolved list. "Go to email" is a plain
+ * link with no server call and must never reach this function.
+ */
+export async function archiveSignal(id: string, client: DbClient = db): Promise<void> {
+  await client
+    .update(detectedSignals)
+    .set({ status: 'dismissed', resolvedAt: new Date() })
     .where(eq(detectedSignals.id, id));
 }

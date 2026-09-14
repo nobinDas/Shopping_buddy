@@ -247,6 +247,18 @@ export const detectedSignals = pgTable(
     // duplicates — points at the surviving signal.
     supersededBy: uuid('superseded_by'),
 
+    // Set when amountMinor/currency/billingDate all came back null — a
+    // Sonnet-written paraphrase (never a verbatim copy) of what the email
+    // says and whether the user needs to act on it, for the /review
+    // "needs review" section. Null when the signal has a normal extraction
+    // (docs/DECISIONS.md ADR-018).
+    reviewBrief: text('review_brief'),
+    actionRequired: boolean('action_required'),
+    // Set when the user archives a needs-review card (status -> dismissed).
+    // /review only shows dismissed rows resolved within the last month —
+    // rows past that just stop being queried, never deleted.
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

@@ -27,6 +27,78 @@ not actually examined.
 
 ---
 
+## ADR-018 — A real "needs review" slice on /review ahead of full Phase 1e reconciliation
+
+**Date:** 2026-09-14
+**Status:** accepted
+**Context:** Live sync against the real Gmail account produced 3 real
+`detected_signals` rows (Xfinity, Gas South, Tello) where even Sonnet's
+escalated result (ADR-017) still had `amountMinor`/`currency`/`billingDate`
+all null — genuinely subscription-relevant emails (a one-time payment, a
+rate-change deadline notice, a tabular invoice) that don't fit the
+"renewal receipt" shape the schema/prompt were built around. `PHASES.md`
+scopes `/review` to stay on Phase 1.5's mock data until Phase 1e builds
+full reconciliation, and 1e itself is scoped strictly to
+confirm/price-update/date-update/discovery/cancellation proposals against
+manual subscriptions — not this "extraction came back empty" case. Leaving
+these 3 rows as bare nulls with no way to act on them wastes real,
+already-detected signal.
+
+Separately, `docs/SECURITY.md` states email bodies are never persisted —
+worth an explicit read on whether persisting an LLM-derived *summary* of
+one conflicts with that.
+**Decision:** Build a narrow, self-contained real slice: when a
+classified signal's amount/currency/billingDate all come back null
+(regardless of signal type, cancellations included), a Sonnet-only call
+(`providers/anthropic.ts#writeReviewBrief`, `prompts/write-review-brief.ts`)
+writes a short plain-English brief — explicitly instructed to paraphrase,
+never quote the email verbatim, keeping it inside the spirit of "email
+bodies are never persisted" even though the letter of that rule is about
+the raw body, not a derived paraphrase. The brief and an `actionRequired`
+flag are stored on the signal itself (`review_brief`, `action_required`,
+plus `resolved_at` for archiving) and surfaced in a new, visually separate
+section on `/review` — `components/review/NeedsReviewSection.tsx` — never
+mixed into the existing mock proposal cards
+(`components/review/ReviewProposalTabs.tsx`). Two actions only, no accept/
+reject: "Go to email" (a plain link to the Gmail message, no status
+change) and "Archive" (the only action that moves a card from pending to
+resolved). Archived cards stop appearing after one month but are never
+deleted from the database.
+**Consequences:** `/review` is no longer purely mock — two real,
+independently-evolving code paths now exist on the same page, which the
+eventual Phase 1e cutover will need to reconcile or replace, not just add
+to. An extra Sonnet call runs for every unclear-extraction signal, on top
+of the classification escalation that already ran to produce that null
+result — real, if small, additional cost and latency. The Gmail deep link
+hardcodes `u/0` since `email_accounts` has no per-account "login slot" to
+compute it from; wrong if this app is ever used against a browser logged
+into multiple Google accounts in a different order, accepted for a
+single-account app.
+**Alternatives considered:** Waiting for Phase 1e and modeling this as a
+sixth `reconciliation_proposals` proposal type. Rejected for now — 1e's
+proposal types are specifically about matching against manual
+subscription records, and this case has no manual record to match
+against at all; forcing it into that shape would mean building 1e's data
+model early just to accommodate a fundamentally different kind of row.
+Silently leaving the 3 rows as unreviewable nulls. Rejected — the signal
+was already paid for (two LLM calls per email) and already correctly
+identified as subscription-relevant; discarding it wastes real, working
+detection.
+
+**Note (2026-09-14):** The "visually separate section, never mixed"
+part of the Decision above was explicitly reversed the same day, on
+direct user request: the two-section layout read as two disconnected
+review queues rather than one. `components/review/NeedsReviewSection.tsx`
+and `ReviewProposalTabs.tsx` were merged into one
+`components/review/ReviewList.tsx`, rendering both sources as one
+interleaved, date-sorted list under a single Pending/Resolved tab pair.
+"Go to email" was also extended to the 5 mock proposal cards for visual
+consistency, using invented placeholder message IDs — explicitly not
+real, on record as a known, accepted stub until Phase 1e gives mock data
+a real linked signal. Nothing else in the Decision changed: the brief-
+generation trigger, the two real actions (Go to email / Archive), and
+the one-month resolved-display window are all unaffected.
+
 ## ADR-017 — Escalation triggered by evidence, not a confidence threshold
 
 **Date:** 2026-09-14

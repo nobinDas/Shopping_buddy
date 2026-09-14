@@ -7,7 +7,12 @@ import {
 } from '@/server/db/queries/detection';
 import { getValidAccessToken } from '@/server/services/email-account.service';
 import { listHistory, getMessageMetadata, getMessageBody } from '@/server/providers/gmail';
-import { classifyEmail } from '@/server/providers/anthropic';
+import {
+  classifyEmail,
+  writeReviewBrief,
+  type ClassificationResult,
+  type ReviewBrief,
+} from '@/server/providers/anthropic';
 import { looksLikelySubscription } from '@/server/domain/prefilter';
 import { computeContentHash } from '@/server/domain/content-hash';
 import { dedupeSignals } from '@/server/domain/dedupe-signals';
@@ -50,7 +55,8 @@ export async function syncAccount(accountId: string, client: DbClient = db): Pro
       continue;
     }
 
-    let classification;
+    let classification: ClassificationResult | null;
+    let reviewBrief: ReviewBrief | null = null;
     try {
       const { body, receivedAt } = await getMessageBody(accessToken, messageId);
       classification = await classifyEmail({
@@ -59,6 +65,33 @@ export async function syncAccount(accountId: string, client: DbClient = db): Pro
         body,
         receivedAt,
       });
+
+      // Unclear extraction (docs/DECISIONS.md ADR-018): a genuinely
+      // subscription-relevant email that didn't fit the standard
+      // amount/currency/billingDate shape. Written here, still inside
+      // this try block, so it can reuse `body` already fetched above —
+      // it's never persisted, so this is the only place it's available
+      // without a second Gmail fetch.
+      if (
+        classification?.amountMinor === null &&
+        classification.currency === null &&
+        classification.billingDate === null
+      ) {
+        try {
+          reviewBrief = await writeReviewBrief({
+            subject: metadata.subject,
+            from: metadata.from,
+            body,
+          });
+        } catch (error) {
+          // A brief-generation failure doesn't sink the signal itself —
+          // it still gets inserted below, just without a brief.
+          console.error('syncAccount: review brief request failed', {
+            messageId,
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
+          });
+        }
+      }
     } catch (error) {
       // A genuine request failure for one message doesn't abort the
       // whole sync — log the error type/message id only, move on.
@@ -91,6 +124,8 @@ export async function syncAccount(accountId: string, client: DbClient = db): Pro
         currency: classification.currency,
         billingDate: classification.billingDate,
         confidence: classification.confidence.toString(),
+        reviewBrief: reviewBrief?.summary ?? null,
+        actionRequired: reviewBrief?.actionRequired ?? null,
       },
       client,
     );
