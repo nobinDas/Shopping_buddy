@@ -50,6 +50,137 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-09-14 — A single vendor name broke date extraction on an otherwise-identical email, proven by a swap test
+**Context:** Even after the transcription fix (2026-09-13 entry below), two
+golden fixtures — both INR-denominated — kept intermittently returning
+`billingDate: null` on far-future dates. Suspected the INR currency
+formatting itself (bare integer, no decimal shown, comma thousands
+separator, "Rs." prefix vs. "₹" symbol).
+**What I thought:** Building 5 controlled fixtures, each varying exactly
+one INR-formatting property, would isolate which formatting quirk was
+the trigger.
+**What was actually true:** None of the formatting variants reproduced
+the bug except one (a comma-formatted amount, a real and separate
+finding). The actual failing fixture — a `ZEE5` renewal — didn't fit any
+formatting pattern; a structurally near-identical fixture (`SonyLIV`,
+same bare-integer INR, same ~1-year-out date) was 100% reliable across
+every trial. Isolated the true cause with a direct swap test: took each
+fixture's exact content and swapped *only* the vendor name between them.
+The failure followed the name in both directions, 5/5 each way — content
+that always worked broke the moment it was renamed "ZEE5"; content that
+always failed was fixed the moment it was renamed "SonyLIV." No feature
+of the email content explained it (a follow-up test renaming to "Zee
+Play," removing just the embedded digit, still failed 4/5) — the string
+"ZEE5" itself was sufficient, on its own, to break extraction of an
+unrelated field.
+**Why it matters:** Some model failures are spurious correlations picked
+up during training with no logical connection to the task, and they are
+fundamentally unpredictable from the input in advance — there is no
+prompt wording that guards against an input feature you don't know is a
+trigger. The only real defense is checking the *output shape* after the
+fact (a missing field where one is normally expected, regardless of why)
+rather than trying to anticipate every input that could break the model.
+This directly shaped the escalation design in `providers/anthropic.ts`:
+two evidence-based checks on Haiku's output (`hasSuspectBillingDate`,
+`hasMissingBillingDateOnATypeThatUsuallyHasOne`) replaced a confidence
+threshold, which — per the entry below — was never going to catch either
+of these anyway.
+**Portfolio-worthy:** yes
+
+### 2026-09-13 — Verbatim transcription beats asking a model to compute — and confidence doesn't track this kind of failure
+**Context:** Haiku 4.5 was confirmed, reproducibly substituting a
+different date (whatever reference date the prompt happened to supply —
+no reference at all, "today's date," or the email's own received date,
+tried in that order) for the real, far-future billing date stated in an
+email — every time, regardless of increasingly explicit prompt
+instructions not to.
+**What I thought:** This was a prompt-engineering problem — with a
+strong enough instruction (or the right context, like grounding the
+model in a real reference date), the model would stop substituting the
+wrong value.
+**What was actually true:** Three different prompt-wording attempts
+failed the same way, each substituting whichever new reference value had
+just been added to the prompt. The fix wasn't better wording — it was
+changing what the model was asked to *do*: instead of asking it to
+compute an ISO date from the email's date, the prompt now asks it to
+copy the date span verbatim (`billingDateText`), and a separate,
+deterministic function (`domain/parse-date-span.ts`) converts it to ISO
+in code. Confirmed live: the model's own self-reported `confidence` was
+consistently high (0.9+) on every wrong answer, identical to its
+confidence on correct ones — it was never uncertain, so no rubric or
+few-shot example could have elicited a lower number. The same fix
+pattern, applied to amounts (`amountText` + `parse-amount-span.ts`),
+independently fixed a second, unrelated-seeming bug (Haiku multiplying a
+zero-decimal JPY amount by 100 anyway).
+**Why it matters:** When a model confidently computes a wrong value from
+a valid input, that's a computation bug, not an uncertainty bug — the
+fix is moving the computation into deterministic code the model doesn't
+touch, not more prompt engineering. Verbalized confidence tracks input
+*ambiguity*, not model *failure*: it's real signal for "the email itself
+was unclear," and no signal at all for "the model made a mistake it felt
+sure about." That distinction directly ruled out several standard
+mitigation techniques for this specific bug: self-consistency (sampling
+the same call multiple times) and token log-probabilities both measure
+how *stable or probable* an answer was, not whether it was *correct* —
+useless against an error that's stable and confident by construction.
+**Portfolio-worthy:** yes
+
+### 2026-09-11 — A "free tier" rate limit can be a hard wall, not friction
+**Context:** Phase 1d's classification calls to `gemini-3.6-flash` were
+failing intermittently — 503s, timeouts, and one incomplete extraction —
+during golden-file testing. Built a retry-with-backoff and model-fallback
+chain to ride it out (docs/DECISIONS.md's ADR-015 already anticipated
+"free-tier rate limits are a real ceiling").
+**What I thought:** This was transient overload on a very new model —
+the kind of thing exponential backoff across a few attempts, and falling
+back to a second model on repeated failure, would smooth over.
+**What was actually true:** The real cause was a flat **20
+requests-per-day-per-project** quota on the free tier — confirmed
+directly from Google's own `429` error body
+(`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, `quotaValue: 20`),
+not a per-minute rate that recovers on its own. No amount of backoff
+helps a quota that resets once a day; repeated test runs during
+development burned through it in minutes. Separately, while adjusting the
+retry logic, a `504 DEADLINE_EXCEEDED` also turned up once a per-call
+timeout was added — the SDK sends an `X-Server-Timeout` header, and
+Gemini's own server actively returns 504 near that deadline rather than
+the connection just hanging.
+**Why it matters:** "Free tier" on an LLM API can mean two very different
+things — a soft, self-healing rate limit (typical for Anthropic/OpenAI's
+paid tiers, and their own default starting tiers) or a hard daily quota
+that development traffic alone can exhaust before any real usage happens
+(Gemini's free tier here). Whether a captured error is really transient
+or actually load-bearing is worth reading the *exact* error body for
+(`quotaId`, `RESOURCE_EXHAUSTED` vs a plain rate-limit code) before
+building retry logic around an assumption. Ended in ADR-016 reverting to
+the originally-planned provider.
+**Portfolio-worthy:** yes
+
+### 2026-09-11 — Local models can legally satisfy a JSON schema by omitting everything optional
+**Context:** Evaluating `granite3.3:8b` via Ollama's structured-outputs
+feature (`format` as a JSON Schema) as a free, fully local alternative to
+a hosted classification API, using the same schema shape already proven
+against Gemini (`required: ['relevant', 'confidence']` only — every other
+field nullable but optional).
+**What I thought:** Schema-constrained decoding would behave the same
+regardless of which engine enforced it — the model would fill in every
+field it had an answer for, same as observed with Gemini's own structured
+output under the identical schema.
+**What was actually true:** Given the real, detailed production prompt,
+Granite's output legally satisfied the schema by returning *only* the
+required keys (`relevant`, `confidence`) and omitting every optional
+field outright — a valid JSON object per the schema, just not a useful
+one. Marking every field `required` (with `null` as a permitted value for
+the ones that are conceptually optional) fixed it immediately. Gemini's
+own implementation never did this under the exact same lenient schema.
+**Why it matters:** "Required" in a JSON Schema is a floor, not a
+suggestion to the model to fill in the rest — different constrained-
+decoding engines resolve that ambiguity differently, and the gap only
+shows up by inspecting raw output, not by checking JSON validity (which
+passes either way). If a field matters, mark it required and make null an
+explicit legal value, rather than relying on convention.
+**Portfolio-worthy:** yes
+
 ### 2026-09-10 — A Next.js dev-console warning caught a real token leak, not a cosmetic one
 **Context:** Wiring the real Google OAuth connect flow (Phase 1c stage
 2). `accounts/page.tsx` (a Server Component) fetched every connected

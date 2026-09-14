@@ -7,7 +7,7 @@ import {
 } from '@/server/db/queries/detection';
 import { getValidAccessToken } from '@/server/services/email-account.service';
 import { listHistory, getMessageMetadata, getMessageBody } from '@/server/providers/gmail';
-import { classifyEmail } from '@/server/providers/gemini';
+import { classifyEmail } from '@/server/providers/anthropic';
 import { looksLikelySubscription } from '@/server/domain/prefilter';
 import { computeContentHash } from '@/server/domain/content-hash';
 import { dedupeSignals } from '@/server/domain/dedupe-signals';
@@ -52,8 +52,14 @@ export async function syncAccount(accountId: string, client: DbClient = db): Pro
 
     let classification;
     try {
-      const { body } = await getMessageBody(accessToken, messageId);
-      classification = await classifyEmail({ subject: metadata.subject, from: metadata.from, body });
+      const { body, receivedAt } = await getMessageBody(accessToken, messageId);
+      classification = await classifyEmail({
+        subject: metadata.subject,
+        from: metadata.from,
+        body,
+        receivedAt,
+        traceLabel: messageId,
+      });
     } catch (error) {
       // A genuine request failure for one message doesn't abort the
       // whole sync — log the error type/message id only, move on.

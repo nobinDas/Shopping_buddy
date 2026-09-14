@@ -1,0 +1,13 @@
+{
+  "subject": "Your Adobe Creative Cloud plan has changed to Free",
+  "from": "message@adobe.com",
+  "body": "Hi,\n\nThis confirms you've downgraded from Creative Cloud All Apps to the Free plan. Your paid subscription has ended, effective October 1, 2026.\n\nYou will not be charged again unless you upgrade in the future.\n\n- The Adobe Team",
+  "receivedDate": "2026-10-01",
+  "expected": {
+    "signalType": "cancellation",
+    "vendorName": "Adobe",
+    "amountMinor": null,
+    "currency": null,
+    "billingDate": null
+  }
+}

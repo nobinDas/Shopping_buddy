@@ -1,0 +1,13 @@
+{
+  "subject": "Your Dropbox Plus subscription renewed at $0.00",
+  "from": "no-reply@dropbox.com",
+  "body": "Hi,\n\nYour Dropbox Plus subscription renewed today. Thanks to a referral credit applied to your account, you were charged $0.00 (USD) for this billing period.\n\nYour next billing date is October 11, 2026, when your standard rate will resume unless you have additional credits.\n\n- The Dropbox Team",
+  "receivedDate": "2026-09-11",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Dropbox",
+    "amountMinor": 0,
+    "currency": "USD",
+    "billingDate": "2026-10-11"
+  }
+}

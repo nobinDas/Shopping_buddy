@@ -1,0 +1,13 @@
+{
+  "subject": "Your Zomato Gold payment confirmation",
+  "from": "billing@zomato.com",
+  "body": "Hi,\n\nThanks for being a Zomato Gold member. We've charged Rs. 1,499 (INR) for your annual membership renewal.\n\nYour next renewal date is September 30, 2027.\n\n- The Zomato Team",
+  "receivedDate": "2026-09-30",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Zomato Gold",
+    "amountMinor": 149900,
+    "currency": "INR",
+    "billingDate": "2027-09-30"
+  }
+}

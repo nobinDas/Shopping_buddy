@@ -1,0 +1,13 @@
+{
+  "subject": "Your Linear annual plan has renewed",
+  "from": "billing@linear.app",
+  "body": "Hi,\n\nThis confirms your Linear Business annual plan has renewed. We've charged $1,200.00 (USD) for the next 12 months.\n\nYour next renewal date is September 8, 2027.\n\n- The Linear Team",
+  "receivedDate": "2026-09-08",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Linear",
+    "amountMinor": 120000,
+    "currency": "USD",
+    "billingDate": "2027-09-08"
+  }
+}

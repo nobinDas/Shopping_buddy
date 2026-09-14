@@ -1,0 +1,13 @@
+{
+  "subject": "Your Hotstar Premium payment was successful",
+  "from": "billing@hotstar.com",
+  "body": "Hi,\n\nThanks for being a Hotstar Premium subscriber. We've charged Rs. 299 (INR) for your monthly plan.\n\nYour next billing date is October 15, 2026.\n\n- The Hotstar Team",
+  "receivedDate": "2026-09-15",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Hotstar",
+    "amountMinor": 29900,
+    "currency": "INR",
+    "billingDate": "2026-10-15"
+  }
+}

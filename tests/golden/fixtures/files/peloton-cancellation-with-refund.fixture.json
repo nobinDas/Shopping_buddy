@@ -1,0 +1,13 @@
+{
+  "subject": "Your Peloton App subscription has been cancelled and refunded",
+  "from": "no-reply@onepeloton.com",
+  "body": "Hi,\n\nAs requested, we've cancelled your Peloton App membership and refunded $12.99 (USD) to your original payment method.\n\nYour access has ended effective today, September 11, 2026. You will not be charged again.\n\n- The Peloton Team",
+  "receivedDate": "2026-09-11",
+  "expected": {
+    "signalType": "cancellation",
+    "vendorName": "Peloton",
+    "amountMinor": 1299,
+    "currency": "USD",
+    "billingDate": null
+  }
+}

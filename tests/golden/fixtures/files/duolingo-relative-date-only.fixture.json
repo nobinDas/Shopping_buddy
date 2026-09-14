@@ -1,0 +1,13 @@
+{
+  "subject": "Your Duolingo Super trial ends soon",
+  "from": "hello@duolingo.com",
+  "body": "Hi,\n\nJust a heads up — your Duolingo Super free trial ends in 3 days.\n\nAfter that, we'll start billing you $6.99/month (USD) using the payment method on file.\n\nWant to make changes first? You can cancel any time before your trial ends in Settings > Subscription.\n\n- The Duolingo Team",
+  "receivedDate": "2026-09-08",
+  "expected": {
+    "signalType": "trial_conversion",
+    "vendorName": "Duolingo",
+    "amountMinor": 699,
+    "currency": "USD",
+    "billingDate": null
+  }
+}

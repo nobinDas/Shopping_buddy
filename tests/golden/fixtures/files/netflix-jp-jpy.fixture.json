@@ -1,0 +1,13 @@
+{
+  "subject": "Netflixのお支払い確認",
+  "from": "info@account.netflix.com",
+  "body": "いつもNetflixをご利用いただきありがとうございます。\n\nスタンダードプランの料金として1,490円のお支払いを確認いたしました。\n\n次回のお支払い日は2026年10月5日です。\n\n- Netflixチーム",
+  "receivedDate": "2026-09-05",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Netflix",
+    "amountMinor": 1490,
+    "currency": "JPY",
+    "billingDate": "2026-10-05"
+  }
+}

@@ -74,24 +74,50 @@ to be settled before anything writes to it automatically.
 
 ### 1d — Detection
 
-Uses Gemini (Google AI Studio), not Claude — see ADR-015 in
-`DECISIONS.md`. Single-tier classification, no paid escalation model for
-low-confidence cases (a deliberate tradeoff of the free tier). Produces
-real `detected_signals` rows; no new UI this phase — `/review` stays on
-Phase 1.5's mock data until 1e (a separate future phase) builds real
+Uses Claude Haiku 4.5 as the primary classifier, with Claude Sonnet 5
+escalation triggered by two specific, evidence-based checks on Haiku's
+*output* (ADR-017 in `DECISIONS.md`) — not the confidence-threshold
+design ADR-016/ADR-004 originally specified, which turned out not to
+work (confidence tracks input ambiguity, not model failure; see
+`docs/LEARNED.md`'s 2026-09-13/2026-09-14 entries). Amounts and billing
+dates are extracted as verbatim text and parsed deterministically in code
+(`domain/parse-amount-span.ts`, `domain/parse-date-span.ts`), not
+computed by the model. The original ADR-016 model choice (Claude over
+Gemini/Ollama) is unaffected and still stands. Produces real
+`detected_signals` rows; no new UI this phase — `/review` stays on Phase
+1.5's mock data until 1e (a separate future phase) builds real
 reconciliation against them.
 
 - [ ] Cheap pre-filter (sender/heuristic) before any LLM call —
-      implemented, live verification pending
-- [ ] LLM classification and extraction with Zod-validated JSON output —
-      implemented, live verification pending
-- [ ] Signal types: new subscription, renewal, price change, trial conversion, cancellation —
-      implemented, live verification pending
-- [ ] Cross-inbox deduplication — implemented, live verification pending
-- [ ] Golden-file test set of real anonymised emails with expected
-      outputs — test harness built (`pnpm test:golden`,
-      `tests/golden/fixtures/README.md`), pending the user adding real
-      anonymised fixtures
+      implemented, unit-tested; live verification against a real Gmail
+      sync still pending
+- [x] LLM classification and extraction with Zod-validated JSON output —
+      live-verified via `pnpm test:golden` against 25 real anonymised
+      emails, real Claude API (Haiku 4.5 + evidence-based Sonnet 5
+      escalation), stable across repeated runs
+- [x] Signal types: new subscription, renewal, price change, trial conversion, cancellation —
+      all 5 covered by the golden-file fixtures, all passing
+- [ ] Cross-inbox deduplication — implemented, unit-tested; live
+      verification against a real multi-account sync still pending
+- [x] Golden-file test set of real anonymised emails with expected
+      outputs — 25 real fixtures in `tests/golden/fixtures/files/`
+      (20 original + 5 added to isolate a currency-formatting bug —
+      see `docs/LEARNED.md`, 2026-09-14), `pnpm test:golden` green
+      against the real Claude API
+- [ ] **Remove or replace LangSmith tracing before deployment
+      (2026-09-13)** — `providers/anthropic.ts` currently wraps the
+      Claude client with `wrapAnthropic()` for local testing only (see
+      `.env.example`'s `LANGSMITH_TRACING` section). It sends full
+      prompt/response content — including real email subject/body once
+      this runs against a live inbox — to LangSmith's servers, a third
+      party beyond Gmail and Anthropic that `docs/SECURITY.md`'s data-flow
+      rules never accounted for. Confirmed inert (no network calls) unless
+      `LANGSMITH_TRACING=true` is explicitly set, and that's currently
+      only ever set in `.env.local`, never a deployed env — but the wrap
+      itself, and the `langsmith` dependency, must come back out (or be
+      replaced with the in-house Postgres-log alternative considered
+      earlier, which stays within the existing "safe to log" allowlist)
+      before this app runs against a real Gmail account in production.
 
 ### 1e — Reconciliation
 
@@ -126,6 +152,40 @@ CLAUDE.md's "no silent recommendations" rule, and likely a new
 `item_price_history.source` value (e.g. `'agent'`) distinct from the existing
 `'manual'`/`'walmart'` so an agent-written price stays distinguishable from a
 user-triggered one. Revisit when 1d/1e are actually being built.
+
+**Idea captured for this phase, not yet scoped — failed/declined payment
+handling (2026-09-13):** Neither the `signal_type` enum
+(`new`/`renewal`/`price_change`/`trial_conversion`/`cancellation`) nor
+`classify-email.ts`'s prompt nor the reconciliation proposal types
+(`confirm`/`price_update`/`date_update`/`discovery`/`cancellation`) have any
+concept of a payment failure — a real "your card was declined, please
+update your payment method" email has nowhere correct to go today. Tested
+directly: no golden fixture covers this case, and reasoning through the
+existing 5 signal types shows the LLM would likely be forced to call it
+`renewal` (the closest fit), which is actively wrong — it implies the
+charge succeeded when it didn't. Needs, at minimum: a new `payment_failed`
+(or similar) signal type, a corresponding prompt update, a schema migration,
+and a review-queue treatment distinct from the existing 5 proposal types
+(this isn't a discovery, a price change, or a confirm — it's its own kind
+of alert). Revisit when 1e's reconciliation logic is actually being
+designed.
+
+**Idea captured for this phase, not yet scoped — missing-expected-email
+detection (2026-09-13):** Everything built through 1d is purely reactive —
+it only ever processes emails that actually arrive. There is no mechanism
+anywhere (not in `domain/`, not in the reconciliation design in
+`DATA_MODEL.md`) that watches for an *absence* — e.g. a subscription that
+normally bills on the 5th, give or take a few days, where no matching
+`detected_signal` shows up at all that month. This is a structurally
+different capability from anything else in 1d/1e (detecting a missing
+event, not classifying a present one) and would need real design, not
+just wiring: computing each subscription's expected next billing date
+(`domain/billing-cycle.ts#computeNextBillingDate` already does this for
+the dashboard's upcoming-renewals list), a grace window (e.g. ±3 days),
+a scheduled check for "expected date + grace period has passed with no
+matching signal," and a new kind of alert distinct from the existing
+proposal types. Revisit when 1e is actually being designed — don't let
+this quietly fall out of scope by omission.
 
 ---
 

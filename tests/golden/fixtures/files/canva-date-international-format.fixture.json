@@ -1,0 +1,13 @@
+{
+  "subject": "Your Canva Pro payment confirmation",
+  "from": "billing@canva.com",
+  "body": "Hi,\n\nThanks for being a Canva Pro subscriber. We've charged $12.99 (USD) for your monthly plan.\n\nYour next payment date is 15 October 2026.\n\n- The Canva Team",
+  "receivedDate": "2026-09-15",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Canva",
+    "amountMinor": 1299,
+    "currency": "USD",
+    "billingDate": "2026-10-15"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "subject": "🎉 Thanks for renewing your Duolingo Super!",
+  "from": "hello@duolingo.com",
+  "body": "Hi,\n\nYour Duolingo Super subscription just renewed! We've charged $6.99 (USD) for your monthly plan.\n\nYour next payment date is October 8, 2026.\n\nKeep up your streak! 🔥\n\n- The Duolingo Team",
+  "receivedDate": "2026-09-08",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Duolingo",
+    "amountMinor": 699,
+    "currency": "USD",
+    "billingDate": "2026-10-08"
+  }
+}

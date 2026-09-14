@@ -7,7 +7,7 @@ import { encryptToken } from '@/server/providers/crypto';
 import { buildEmailAccount } from '../fixtures/builders';
 
 // docs/TESTING.md: "External providers mocked at the adapter boundary in
-// src/server/providers/" — providers/gmail.ts and providers/gemini.ts are
+// src/server/providers/" — providers/gmail.ts and providers/anthropic.ts are
 // mocked here; the DB side runs for real against Postgres inside a
 // rolled-back transaction.
 vi.mock('@/server/providers/gmail', () => ({
@@ -15,24 +15,24 @@ vi.mock('@/server/providers/gmail', () => ({
   getMessageMetadata: vi.fn(),
   getMessageBody: vi.fn(),
 }));
-vi.mock('@/server/providers/gemini', () => ({
+vi.mock('@/server/providers/anthropic', () => ({
   classifyEmail: vi.fn(),
 }));
 
 const gmail = await import('@/server/providers/gmail');
-const gemini = await import('@/server/providers/gemini');
+const anthropic = await import('@/server/providers/anthropic');
 
 beforeEach(() => {
   vi.mocked(gmail.listHistory).mockReset();
   vi.mocked(gmail.getMessageMetadata).mockReset();
   vi.mocked(gmail.getMessageBody).mockReset();
-  vi.mocked(gemini.classifyEmail).mockReset();
+  vi.mocked(anthropic.classifyEmail).mockReset();
 });
 
 // process.env['TOKEN_ENCRYPTION_KEY'] is already set for the whole suite
 // (see vitest.config.mts) — real encryptToken output, so
 // getValidAccessToken's decrypt step is exercised for real, only the
-// external Gmail/Gemini calls are mocked.
+// external Gmail/Claude calls are mocked.
 async function createTestAccount(tx: DbClient) {
   const [account] = await tx
     .insert(emailAccounts)
@@ -64,7 +64,7 @@ describe('syncAccount', () => {
 
         expect(result.signalsCreated).toBe(0);
         expect(gmail.getMessageBody).not.toHaveBeenCalled();
-        expect(gemini.classifyEmail).not.toHaveBeenCalled();
+        expect(anthropic.classifyEmail).not.toHaveBeenCalled();
 
         tx.rollback();
       }),
@@ -86,8 +86,9 @@ describe('syncAccount', () => {
           subject: 'Your Netflix receipt',
           from: 'billing@netflix.com',
           body: 'You were charged $15.49 for your monthly subscription.',
+          receivedAt: '2026-09-01',
         });
-        vi.mocked(gemini.classifyEmail).mockResolvedValue({
+        vi.mocked(anthropic.classifyEmail).mockResolvedValue({
           signalType: 'renewal',
           vendorName: 'Netflix',
           amountMinor: 1549,
@@ -128,8 +129,9 @@ describe('syncAccount', () => {
           subject: 'Your Netflix receipt',
           from: 'billing@netflix.com',
           body: 'Charged $15.49',
+          receivedAt: '2026-09-01',
         });
-        vi.mocked(gemini.classifyEmail).mockResolvedValue({
+        vi.mocked(anthropic.classifyEmail).mockResolvedValue({
           signalType: 'renewal',
           vendorName: 'Netflix',
           amountMinor: 1549,
@@ -174,8 +176,9 @@ describe('syncAccount', () => {
           subject: 'Your Netflix receipt',
           from: 'billing@netflix.com',
           body: 'Charged $15.49',
+          receivedAt: '2026-09-01',
         });
-        vi.mocked(gemini.classifyEmail)
+        vi.mocked(anthropic.classifyEmail)
           .mockResolvedValueOnce({
             signalType: 'renewal',
             vendorName: 'Netflix',
@@ -233,8 +236,9 @@ describe('syncAccount', () => {
             subject: 'Your Netflix receipt',
             from: 'billing@netflix.com',
             body: 'Charged $15.49',
+            receivedAt: '2026-09-01',
           });
-        vi.mocked(gemini.classifyEmail).mockResolvedValue({
+        vi.mocked(anthropic.classifyEmail).mockResolvedValue({
           signalType: 'renewal',
           vendorName: 'Netflix',
           amountMinor: 1549,

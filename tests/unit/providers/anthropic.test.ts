@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { parseClassificationResponse } from '@/server/providers/gemini';
+import { parseClassificationResponse } from '@/server/providers/anthropic';
 
 describe('parseClassificationResponse', () => {
-  it('extracts a valid relevant classification', () => {
+  it('extracts a valid relevant classification, parsing the verbatim date and amount spans', () => {
     const result = parseClassificationResponse({
       relevant: true,
       signalType: 'renewal',
       vendorName: 'Netflix',
-      amountMinor: 1549,
+      amountText: '$15.49',
       currency: 'USD',
-      billingDate: '2026-09-01',
+      billingDateText: 'September 1, 2026',
       confidence: 0.92,
     });
 
@@ -28,9 +28,9 @@ describe('parseClassificationResponse', () => {
       relevant: false,
       signalType: null,
       vendorName: null,
-      amountMinor: null,
+      amountText: null,
       currency: null,
-      billingDate: null,
+      billingDateText: null,
       confidence: 0.1,
     });
     expect(result).toBeNull();
@@ -97,5 +97,65 @@ describe('parseClassificationResponse', () => {
       billingDate: null,
       confidence: 0.8,
     });
+  });
+
+  it('resolves billingDate to null when billingDateText is present but unparseable, rather than failing the whole result', () => {
+    const result = parseClassificationResponse({
+      relevant: true,
+      signalType: 'renewal',
+      vendorName: 'Netflix',
+      billingDateText: 'sometime soon-ish',
+      confidence: 0.7,
+    });
+    expect(result?.billingDate).toBeNull();
+    expect(result?.signalType).toBe('renewal');
+  });
+
+  it('parses a zero-decimal (JPY) amount span without multiplying by 100', () => {
+    const result = parseClassificationResponse({
+      relevant: true,
+      signalType: 'renewal',
+      vendorName: 'Netflix',
+      amountText: '1,490円',
+      currency: 'JPY',
+      confidence: 0.9,
+    });
+    expect(result?.amountMinor).toBe(1490);
+  });
+
+  it('resolves amountMinor to null when amountText is present but unparseable, rather than failing the whole result', () => {
+    const result = parseClassificationResponse({
+      relevant: true,
+      signalType: 'renewal',
+      vendorName: 'Netflix',
+      amountText: 'a few dollars',
+      currency: 'USD',
+      confidence: 0.6,
+    });
+    expect(result?.amountMinor).toBeNull();
+    expect(result?.signalType).toBe('renewal');
+  });
+
+  it('deterministically nulls billingDate for a cancellation, even if the model returned one — a guaranteed contradiction, not a maybe', () => {
+    const result = parseClassificationResponse({
+      relevant: true,
+      signalType: 'cancellation',
+      vendorName: 'Adobe',
+      billingDateText: 'October 1, 2026',
+      confidence: 0.95,
+    });
+    expect(result?.billingDate).toBeNull();
+    expect(result?.signalType).toBe('cancellation');
+  });
+
+  it('leaves a non-cancellation billingDate untouched', () => {
+    const result = parseClassificationResponse({
+      relevant: true,
+      signalType: 'renewal',
+      vendorName: 'Netflix',
+      billingDateText: 'October 1, 2026',
+      confidence: 0.9,
+    });
+    expect(result?.billingDate).toBe('2026-10-01');
   });
 });

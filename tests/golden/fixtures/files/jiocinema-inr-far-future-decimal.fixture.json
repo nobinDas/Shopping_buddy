@@ -1,0 +1,13 @@
+{
+  "subject": "Your JioCinema Premium payment confirmation",
+  "from": "billing@jiocinema.com",
+  "body": "Hi,\n\nThanks for being a JioCinema Premium subscriber. We've charged Rs. 499.00 (INR) for your annual plan renewal.\n\nYour next renewal date is September 25, 2027.\n\n- The JioCinema Team",
+  "receivedDate": "2026-09-25",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "JioCinema",
+    "amountMinor": 49900,
+    "currency": "INR",
+    "billingDate": "2027-09-25"
+  }
+}

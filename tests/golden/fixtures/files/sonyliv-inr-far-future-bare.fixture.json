@@ -1,0 +1,13 @@
+{
+  "subject": "Your SonyLIV Premium payment confirmation",
+  "from": "billing@sonyliv.com",
+  "body": "Hi,\n\nThanks for being a SonyLIV Premium subscriber. We've charged Rs. 999 (INR) for your annual plan renewal.\n\nYour next renewal date is September 22, 2027.\n\n- The SonyLIV Team",
+  "receivedDate": "2026-09-22",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "SonyLIV",
+    "amountMinor": 99900,
+    "currency": "INR",
+    "billingDate": "2027-09-22"
+  }
+}

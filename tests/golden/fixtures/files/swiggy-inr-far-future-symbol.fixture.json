@@ -1,0 +1,13 @@
+{
+  "subject": "Your Swiggy One payment confirmation",
+  "from": "billing@swiggy.in",
+  "body": "Hi,\n\nThanks for being a Swiggy One member. We've charged ₹599 for your annual membership renewal.\n\nYour next renewal date is September 28, 2027.\n\n- The Swiggy Team",
+  "receivedDate": "2026-09-28",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Swiggy One",
+    "amountMinor": 59900,
+    "currency": "INR",
+    "billingDate": "2027-09-28"
+  }
+}

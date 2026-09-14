@@ -1,0 +1,13 @@
+{
+  "subject": "Ihre Amazon Prime Zahlungsbestätigung",
+  "from": "prime-noreply@amazon.de",
+  "body": "Hallo,\n\nvielen Dank, dass Sie Amazon Prime Mitglied sind. Wir haben 8,99 EUR fuer Ihre monatliche Mitgliedschaft abgebucht.\n\nIhr naechstes Abrechnungsdatum ist der 7. Oktober 2026.\n\nIhr Amazon Prime Team",
+  "receivedDate": "2026-09-07",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Amazon Prime",
+    "amountMinor": 899,
+    "currency": "EUR",
+    "billingDate": "2026-10-07"
+  }
+}

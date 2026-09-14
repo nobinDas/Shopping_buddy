@@ -1,0 +1,13 @@
+{
+  "subject": "Your Basecamp subscription payment receipt",
+  "from": "billing@basecamp.com",
+  "body": "Hi,\n\nThanks for your Basecamp subscription. We've charged $99.00 (USD) for this billing period.\n\nYour next payment date is 10/15/2026.\n\n- The Basecamp Team",
+  "receivedDate": "2026-09-15",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Basecamp",
+    "amountMinor": 9900,
+    "currency": "USD",
+    "billingDate": "2026-10-15"
+  }
+}

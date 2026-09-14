@@ -1,0 +1,13 @@
+{
+  "subject": "Your gift subscription to Spotify Premium has been activated",
+  "from": "no-reply@spotify.com",
+  "body": "Hi,\n\nSomeone gave you 3 months of Spotify Premium as a gift! Your Premium features are active now at no cost to you.\n\nWhen your gift period ends on December 5, 2026, your account will switch to Spotify Free unless you add a payment method to continue Premium.\n\n- The Spotify Team",
+  "receivedDate": "2026-09-05",
+  "expected": {
+    "signalType": "new",
+    "vendorName": "Spotify",
+    "amountMinor": null,
+    "currency": null,
+    "billingDate": null
+  }
+}

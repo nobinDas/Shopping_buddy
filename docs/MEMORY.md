@@ -33,16 +33,31 @@ live-verified against the real Google Routes API and Places API (New).
 all 4 checklist items, live-verified against the real Google Shopping API
 (via SerpApi), a real price-drop badge confirmed end to end across the
 bottom nav → More → Watchlist. **Phase 1d (Detection) is
-implementation-complete** — real `detected_signals` schema, Gmail
-history.list sync, a pre-filter, Gemini classification/extraction
-(ADR-015, not Claude — free tier), cross-inbox dedup, and a "Sync now"
-trigger on `/accounts`, `pnpm verify` green — live verification against a
-real Gmail account is blocked on the user adding a `GEMINI_API_KEY`.
-Per ADR-010, Phase 1e (Reconciliation) is the one remaining phase, still
-deferred until 1d is live-verified; Microsoft OAuth is likewise
+implementation-complete and its classification/extraction is
+live-verified**: real `detected_signals` schema, Gmail history.list sync,
+a pre-filter, Claude classification/extraction (Haiku 4.5 primary, Sonnet
+5 escalation triggered by two specific evidence-based output checks, not
+a confidence threshold — ADR-017 replaces the confidence-threshold design
+ADR-016/ADR-004 originally specified, after it was confirmed not to catch
+real failures; ADR-016's model choice itself — Claude over a Gemini
+detour, ADR-015, and over local Ollama models — is unaffected and still
+stands), amounts and billing dates extracted as verbatim text and parsed
+deterministically in code (not computed by the model —
+`domain/parse-amount-span.ts`, `domain/parse-date-span.ts`), cross-inbox
+dedup, and a "Sync now" trigger on `/accounts`. `pnpm verify` green (214
+unit, 77 integration) and `pnpm test:golden` green and stable across
+repeated runs — 24/25 real fixtures pass against the live Claude API (the
+one failure is a defensible signal-type judgment call, not a bug). A
+temporary LangSmith tracing wrapper is in place for local debugging only,
+gated behind `LANGSMITH_TRACING` (never set in production) — flagged in
+`PHASES.md` to remove before deployment. Still pending: a full end-to-end
+live sync against a real Gmail account (pre-filter + Gmail fetch +
+classify + dedup + DB write, not just classification in isolation) and
+committing this phase's work. Per ADR-010, Phase 1e (Reconciliation) is
+the one remaining phase after that; Microsoft OAuth is likewise
 unscheduled. A mobile-first UI/UX redesign (ADR-009) landed across every
 existing screen earlier.
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-14
 
 ### Done
 
@@ -649,31 +664,75 @@ pushed separately (2026-09-11):
 
 ### In progress
 
-**Phase 1d (Detection) is implementation-complete, `pnpm verify` green
-(187 unit, 77 integration), but not live-verified or committed** —
-blocked on the user adding a `GEMINI_API_KEY` (Google AI Studio, free
-tier — see ADR-015) and, separately, pasting 3–5 real anonymised
-subscription emails into `tests/golden/fixtures/` for the golden-file
-suite. What's built: `detected_signals` schema (migration `0009`),
+**Phase 1d (Detection) is implementation-complete and classification is
+live-verified, stable across repeated runs; full end-to-end sync
+verification and commit are still pending.** What's built:
+`detected_signals` schema (migration `0009`),
 `domain/prefilter.ts`/`content-hash.ts`/`dedupe-signals.ts` (all pure,
-unit-tested), a versioned prompt (`prompts/classify-email.ts`),
-`providers/gmail.ts` (Gmail `history.list` incremental sync +
-metadata/body fetch, extending the OAuth-only `providers/google.ts`),
-`providers/gemini.ts` (Zod-validated structured-output classification),
-`services/detection.service.ts#syncAccount` (the real orchestration —
-pre-filter before any full-body fetch or LLM call, per
-`docs/SECURITY.md`), a "Sync now" button per connected account on
-`/accounts`, and a `CRON_SECRET`-protected `/api/cron/sync` route (not
-scheduled yet). **No UI change to `/review`** — that's Phase 1e, still a
-separate future phase; verification for 1d is direct `detected_signals`
-inspection via `execute_sql`, not a browser click-through.
+unit-tested), a versioned prompt (`prompts/classify-email.ts` — now asks
+for verbatim `amountText`/`billingDateText` spans rather than computed
+values), two new pure domain parsers
+(`domain/parse-amount-span.ts`/`parse-date-span.ts`, both unit-tested
+against every real number/date format seen in the fixtures) that do the
+actual currency- and format-aware conversion in code instead of asking
+the model to compute it, `providers/gmail.ts` (Gmail `history.list`
+incremental sync + metadata/body fetch, extending the OAuth-only
+`providers/google.ts`; `getMessageBody` now also extracts `receivedAt`
+from Gmail's own `internalDate`), `providers/anthropic.ts` (Haiku 4.5
+primary; Sonnet 5 escalation triggered by two specific, evidence-based
+checks on Haiku's output — not a confidence threshold, see ADR-017 —
+plus a deterministic, non-escalating correction for a guaranteed
+contradiction the prompt already implies: a cancellation's `billingDate`
+is always null; native Claude structured output via
+`output_config.format` + `zodOutputFormat`; a temporary LangSmith
+tracing wrap, gated behind `LANGSMITH_TRACING`, testing-only, flagged in
+`PHASES.md` to remove before deployment), `services/detection.service.ts#syncAccount`
+(the real orchestration — pre-filter before any full-body fetch or LLM
+call, per `docs/SECURITY.md`), a "Sync now" button per connected account
+on `/accounts`, and a `CRON_SECRET`-protected `/api/cron/sync` route (not
+scheduled yet). `pnpm verify` green (214 unit, 77 integration) and
+`pnpm test:golden` green and stable across two full repeated runs —
+24/25 real anonymised fixtures pass against the live Claude API,
+covering all 5 signal types (the one failure, `spotify-gift-subscription`,
+is a defensible `trial_conversion`-vs-`new` judgment call, not a bug).
+**No UI change to `/review`** — that's Phase 1e, still a separate future
+phase.
+
+Before landing here, Gemini (ADR-015) was tried and retired (ADR-016):
+its free tier turned out to cap at a hard 20 requests/day/model, not a
+soft rate limit. Three local Ollama models were also evaluated directly
+(`granite3.3:8b`, `qwen3:8b`, `gemma4:latest`) against the same 5
+fixtures as a free, fully private alternative — rejected after real
+testing (best case 4/5 correct at ~25s/call; worst case a systematic
+amount-extraction bug; all three showed uncalibrated ~1.0 confidence
+regardless of correctness), confirming ADR-004's original prediction
+about small models on this task. Then, live-testing surfaced two
+confirmed, reproducible Haiku bugs that the original confidence-threshold
+escalation design never caught (Haiku was consistently *confident and
+wrong* on both) — fixed by moving date/amount conversion out of the
+model into deterministic code, and by replacing the confidence threshold
+with evidence-based output checks (ADR-017). One of the two bugs was
+root-caused all the way down to a single vendor name ("ZEE5") reliably
+breaking an unrelated field's extraction, proven with a controlled swap
+test — a genuinely unpredictable-in-advance failure mode, which is the
+whole argument for checking output shape after the fact rather than
+trying to prompt-engineer around it. Full detail: ADR-016 and ADR-017 in
+`DECISIONS.md`, four entries in `LEARNED.md` dated 2026-09-11 through
+2026-09-14.
 
 ### Next
 
-Once `GEMINI_API_KEY` exists: click "Sync now" on a real connected
-account, confirm real `detected_signals` rows via `execute_sql`, confirm
-no email content appears in the `pnpm dev` server log, confirm a second
-sync is a no-op. Then commit and push. **Phase 1e (Reconciliation) is
+Live end-to-end verification against a real Gmail account: click "Sync
+now" on `/accounts`, confirm real `detected_signals` rows via
+`execute_sql`, confirm no email content appears in the `pnpm dev` server
+log, confirm a second sync is a no-op. Remove the temporary LangSmith
+tracing wrap (already flagged as a pre-deployment blocker in
+`PHASES.md`) before that live run touches a real inbox. Then commit and
+push everything since the last commit (`ca2732a`/`f8a60bc`) — the
+Anthropic switch, the Ollama experiment (already cleaned up, not part of
+the diff), and this session's classification-accuracy work (verbatim
+transcription, the two new parsers, evidence-based escalation, ADR-017)
+are all currently uncommitted local work. **Phase 1e (Reconciliation) is
 the one remaining phase** after that, per ADR-010's build order — the
 last of the two LLM-touching phases deferred to the end of the build.
 
@@ -705,16 +764,21 @@ its rationale and deleting it here.
   diverge for annual renewals near month boundaries.
 - Sync frequency: daily is the assumption. Is it enough to catch a trial
   conversion before it bills?
-- **Gemini free tier and training data** (Phase 1d, ADR-015): classification
-  currently runs on Google AI Studio's free tier, where inputs/outputs may
-  be used to improve Google's models — accepted deliberately "for now,"
-  with an explicit intent to revisit once the development phase is done
-  (switch to a paid tier, which doesn't train on the data). Don't let this
-  become the permanent state by default.
 - **Vercel Cron schedule for `/api/cron/sync`** (Phase 1d): the route
   handler exists and is `CRON_SECRET`-protected, but no actual schedule is
   configured (`vercel.json`/dashboard). Turn it on once satisfied with
   classification accuracy against the golden-file set.
+- **Anthropic Evaluation tier's real rate limits** (Phase 1d, ADR-016):
+  the org is on the default starting tier — golden-file testing (5 calls)
+  worked cleanly, but the actual per-minute request/token limits haven't
+  been checked against `platform.claude.com/settings/limits`, and a real
+  multi-account daily sync hasn't been run yet. Expected to be fine at
+  this app's volume per ADR-016's reasoning, but unverified at that scale.
+- **Escalation confidence threshold (0.7)** (`providers/anthropic.ts`):
+  a reasonable starting value, not derived from real data — worth
+  revisiting once enough real signals have gone through the two-tier path
+  to see how often Haiku actually escalates and whether Sonnet's answers
+  meaningfully differ from Haiku's on those cases.
 ---
 
 ## How to update this file
@@ -742,6 +806,124 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-14 — Two confirmed Haiku bugs root-caused and fixed; confidence-threshold escalation replaced with evidence-based checks
+**Did:** Continued Phase 1d verification. Set up LangSmith tracing for
+local debugging (`providers/anthropic.ts` wraps the Claude client with
+`wrapAnthropic()`, gated behind `LANGSMITH_TRACING`, testing-only — never
+set in production; confirmed working end to end against the real
+LangSmith API, including per-fixture-named runs). While debugging a
+known billingDate extraction bug, found and fixed two separate,
+confirmed, reproducible Haiku 4.5 failures. First: Haiku was
+consistently substituting a reference date (whatever the prompt
+happened to supply) for a real, far-future billing date, regardless of
+increasingly explicit prompt instructions — fixed not by better wording
+but by changing the task: the model now returns a verbatim date/amount
+span (`billingDateText`/`amountText`) instead of a computed value, and
+two new pure domain functions (`parse-date-span.ts`, `parse-amount-span.ts`,
+both fully unit-tested against every real format in the fixture set)
+convert it deterministically in code. This also independently fixed a
+second, previously-unexplained bug: Haiku multiplying a zero-decimal JPY
+amount by 100 anyway. Second: even after the transcription fix, two
+fixtures kept intermittently failing. Root-caused via a controlled swap
+test (built 5 new INR fixtures to isolate currency-formatting as a
+candidate cause — ruled out for the main case; one comma-formatting
+variant did reproduce a real, separate bug) down to a single vendor
+name, "ZEE5," reliably breaking an unrelated field's extraction on
+otherwise-identical content, proven by swapping only the vendor name
+between a reliable and an unreliable fixture and watching the failure
+follow the name in both directions, 5/5 each way. Along the way,
+confirmed Haiku is not perfectly deterministic even at `temperature: 0`
+(a real, documented phenomenon, not a bug) — a correction to an earlier,
+overstated claim this same phase that two identical passing runs proved
+determinism. Replaced the original confidence-threshold escalation
+(`confidence < 0.7`) with two specific, evidence-based checks on Haiku's
+output (`hasSuspectBillingDate`, `hasMissingBillingDateOnATypeThatUsuallyHasOne`)
+plus a deterministic, non-escalating correction for cancellations (a
+guaranteed contradiction, not a probabilistic one). `pnpm verify` green
+(214 unit, 77 integration) and `pnpm test:golden` green and stable
+across two full repeated runs — 24/25 fixtures (the last failure is a
+defensible signal-type judgment call, not a bug this session touched).
+**Decided:** ADR-017 — confidence-threshold escalation replaced with
+evidence-based output checks; confidence itself is no longer read
+anywhere to gate behavior. Full reasoning, including why self-consistency
+and token log-probabilities would have failed on the same bug for the
+same underlying reason (both measure output stability/probability, not
+correctness), is in the ADR and in two new `LEARNED.md` entries dated
+2026-09-13 and 2026-09-14.
+**Next:** Live end-to-end sync verification against a real Gmail account,
+removing the LangSmith wrap first (already flagged as a pre-deployment
+blocker in `PHASES.md`), then commit and push. Phase 1e (Reconciliation)
+after that.
+
+---
+
+### 2026-09-11 — Gemini retired for a hard free-tier quota; Claude reinstated after real Ollama testing
+**Did:** Picked up Phase 1d mid-verification: `gemini-3.6-flash` was
+failing intermittently during golden-file testing. Built the retry-with-
+backoff + model-fallback chain the user specified, adding a per-call
+timeout (`httpOptions.timeout`) after discovering the SDK doesn't bound a
+single attempt by default. That surfaced the real cause: Google's own
+`429` error body showed a flat **20 requests/day/project** free-tier quota
+— not transient overload — already exhausted by repeated test runs.
+Before switching providers, researched real per-call cost for Claude
+Haiku 4.5 vs. Gemini paid tier (comparable, Gemini's current promo
+pricing edges it out until 2027) and confirmed Anthropic has no
+embeddings API at all (not needed by this app's design either way — the
+reconciliation algorithm in `docs/DATA_MODEL.md` is Levenshtein-based,
+not embedding-based). Then, at the user's request, built and ran a fully
+isolated local-model comparison (`experiments/ollama-classify/`, a
+standalone script with zero project dependencies) against
+`granite3.3:8b`, `qwen3:8b`, and `gemma4:latest` — real results: 3/5,
+4/5, and 1/5 correct respectively against the same 5 golden fixtures,
+`gemma4` with a systematic amount-truncation bug, all three pinning
+confidence near 1.0 regardless of correctness. The experiment was fully
+removed afterward (`rm -rf experiments/`, one eslint-ignore line reverted)
+once the user decided not to pursue local models — verified `pnpm verify`
+stayed green before and after.
+
+Built `src/server/providers/anthropic.ts` from scratch: Haiku 4.5
+primary, Sonnet 5 escalating below 0.7 confidence, native Claude
+structured output (`output_config.format` + `zodOutputFormat`, schema-
+guaranteed by the API itself) rather than Gemini's JSON mode or a
+tool-use workaround. Relies on the SDK's own built-in retry
+(408/409/429/5xx, honors `retry-after`) instead of a hand-rolled loop —
+no observed need for more. Retired Gemini entirely per the user's
+explicit choice: deleted `gemini.ts`, its unit tests, `@google/genai`;
+updated `detection.service.ts` and the integration test's mocks; the
+golden-file test file was repointed at the new provider rather than
+deleted outright, since the fixtures/methodology aren't Gemini-specific
+— flagged this interpretation to the user rather than assuming silently.
+First golden-file run against the real Claude API hit a `credit balance
+too low` error — unlike Gemini, Anthropic requires a funded account
+before *any* request succeeds, even on the Evaluation tier. After the
+user added credits: 3/5 fixtures passed immediately (~11s total, no
+instability); the other 2 failures were a real, symmetric prompt
+ambiguity confirmed by directly querying both Haiku and Sonnet
+independently on the same fixture (both missed the same "next payment
+date" the local models had caught) — tightened
+`prompts/classify-email.ts`'s billingDate instructions to distinguish
+"next scheduled charge" from a cancellation's access-end date. All 5
+fixtures pass after the fix. `pnpm verify` green throughout (187 unit, 77
+integration — same counts as before the swap). Checked off 3 of Phase
+1d's 5 checklist items in `PHASES.md` (classification/extraction,
+signal-type coverage, golden-file set) — pre-filter and cross-inbox dedup
+still need a real end-to-end Gmail sync to check off.
+**Decided:** ADR-016 — Claude replaces Gemini, reinstating ADR-004's
+original two-tier design as-is. Full context, evidence, and alternatives
+considered in `DECISIONS.md`; ADR-015 marked superseded rather than
+rewritten. Two `LEARNED.md` entries capture the transferable lessons: a
+"free tier" can be a hard daily wall rather than a soft rate limit, and
+different structured-output engines resolve a lenient (non-required,
+nullable) JSON Schema differently — Gemini filled in optional fields by
+convention, Ollama's local grammar decoding took the legal shortest-valid
+path and omitted them.
+**Next:** Live end-to-end sync verification against a real Gmail account
+(not just classification in isolation), then commit and push everything
+since the last commit. Then Phase 1e (Reconciliation) — the one remaining
+phase.
 
 ---
 

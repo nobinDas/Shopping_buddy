@@ -1,0 +1,13 @@
+{
+  "subject": "Fwd: Your Netflix payment confirmation",
+  "from": "personal-friend@gmail.com",
+  "body": "hey, is this the charge you were asking about?\n\n---------- Forwarded message ---------\nFrom: Netflix <info@account.netflix.com>\nDate: Thu, Sep 10, 2026 at 9:02 AM\nSubject: Your Netflix payment confirmation\nTo: [redacted]\n\nHi,\n\nThanks for being a member. We've charged your payment method $15.49 (USD) for your Standard plan.\n\nYour next billing date is October 1, 2026.\n\n- The Netflix Team",
+  "receivedDate": "2026-09-10",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Netflix",
+    "amountMinor": 1549,
+    "currency": "USD",
+    "billingDate": "2026-10-01"
+  }
+}

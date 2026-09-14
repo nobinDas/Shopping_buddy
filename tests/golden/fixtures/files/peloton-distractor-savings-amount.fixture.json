@@ -1,0 +1,13 @@
+{
+  "subject": "Your Peloton App annual plan receipt",
+  "from": "no-reply@onepeloton.com",
+  "body": "Hi,\n\nGreat news — by choosing the annual plan, you saved $60 compared to paying monthly!\n\nWe've charged your payment method $239.88 (USD) for your annual Peloton App membership.\n\nYour next renewal date is September 9, 2027.\n\n- The Peloton Team",
+  "receivedDate": "2026-09-09",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Peloton",
+    "amountMinor": 23988,
+    "currency": "USD",
+    "billingDate": "2027-09-09"
+  }
+}

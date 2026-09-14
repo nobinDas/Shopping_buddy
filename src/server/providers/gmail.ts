@@ -191,17 +191,31 @@ export interface MessageBody {
   subject: string;
   from: string;
   body: string;
+  // ISO date (YYYY-MM-DD) Gmail received this message — from the
+  // message's own `internalDate` (epoch ms), not the machine clock at
+  // sync time. Needed so classifyEmail can resolve a relative phrase
+  // ("ends in 3 days") against when the email actually arrived, not
+  // whenever the sync job happens to run.
+  receivedAt: string;
 }
 
 /** Pure — unit-tested directly against fixture JSON. */
 export function parseBodyResponse(data: unknown): MessageBody {
-  const response = data as { payload?: GmailPayload & { headers?: { name?: string; value?: string }[] } };
+  const response = data as {
+    payload?: GmailPayload & { headers?: { name?: string; value?: string }[] };
+    internalDate?: string;
+  };
   const payload = response.payload ?? {};
   const headers = payload.headers ?? [];
+  const internalDateMs = Number(response.internalDate);
+  const receivedAt = Number.isFinite(internalDateMs)
+    ? new Date(internalDateMs).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
   return {
     subject: findHeader(headers, 'Subject'),
     from: findHeader(headers, 'From'),
     body: extractPlainText(payload),
+    receivedAt,
   };
 }
 

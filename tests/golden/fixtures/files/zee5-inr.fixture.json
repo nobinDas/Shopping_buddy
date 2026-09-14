@@ -1,0 +1,13 @@
+{
+  "subject": "Your ZEE5 Premium payment was successful",
+  "from": "billing@zee5.com",
+  "body": "Hi,\n\nThanks for being a ZEE5 Premium subscriber. We've charged Rs. 499 (INR) for your annual plan renewal.\n\nYour next renewal date is September 20, 2027.\n\n- The ZEE5 Team",
+  "receivedDate": "2026-09-20",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "ZEE5",
+    "amountMinor": 49900,
+    "currency": "INR",
+    "billingDate": "2027-09-20"
+  }
+}

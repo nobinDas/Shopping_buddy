@@ -1,0 +1,13 @@
+{
+  "subject": "Your Ahrefs subscription payment",
+  "from": "billing@ahrefs.com",
+  "body": "Hi,\n\nThanks for being an Ahrefs subscriber. We&#39;ve charged your payment method $99.00 (USD) for your Lite plan.&nbsp;\n\nYour next billing date is October 14, 2026.\n\n&mdash; The Ahrefs Team",
+  "receivedDate": "2026-09-14",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Ahrefs",
+    "amountMinor": 9900,
+    "currency": "USD",
+    "billingDate": "2026-10-14"
+  }
+}

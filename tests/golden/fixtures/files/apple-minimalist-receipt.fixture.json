@@ -1,0 +1,13 @@
+{
+  "subject": "Your receipt from Apple",
+  "from": "no_reply@email.apple.com",
+  "body": "Your subscription to HBO Max (Monthly) renewed for $9.99. Billed to Visa ....4242.",
+  "receivedDate": "2026-09-05",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "HBO Max",
+    "amountMinor": 999,
+    "currency": "USD",
+    "billingDate": null
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "subject": "Your NordVPN subscription has renewed",
+  "from": "no-reply@nordvpn.com",
+  "body": "Hi,\n\nThanks for being a NordVPN subscriber. We've charged your payment method $107.64 (USD) for your 3-year plan.\n\nYour next renewal date is September 10, 2029.\n\n- The NordVPN Team",
+  "receivedDate": "2026-09-10",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "NordVPN",
+    "amountMinor": 10764,
+    "currency": "USD",
+    "billingDate": "2029-09-10"
+  }
+}

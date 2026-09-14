@@ -27,10 +27,150 @@ not actually examined.
 
 ---
 
-## ADR-015 — Gemini (Google AI Studio) replaces Claude for Phase 1d classification
+## ADR-017 — Escalation triggered by evidence, not a confidence threshold
+
+**Date:** 2026-09-14
+**Status:** accepted
+**Context:** ADR-016 (and, before it, ADR-004) specified escalating from
+Haiku to Sonnet when Haiku's self-reported `confidence` fell below 0.7.
+In practice this never fired for the failures that mattered. Two
+confirmed, reproducible Haiku bugs surfaced during Phase 1d verification
+— both explained fully in `docs/LEARNED.md`'s 2026-09-13 and 2026-09-14
+entries — and Haiku reported *high* confidence (0.9+) on every wrong
+answer in both, identical to its confidence on correct ones. Directly
+queried Sonnet independently on one of these cases and got the same
+high-confidence-and-wrong result, confirming this isn't Haiku-specific.
+Research (see this session's exchange with a second model, reproduced
+in spirit here) confirms the general pattern: verbalized confidence
+tracks input *ambiguity*, not model *failure* — a model that
+confidently computes a wrong answer from an unambiguous input was never
+"uncertain" in the first place, so no amount of rubric or few-shot
+calibration would have produced a lower number. The same reasoning rules
+out self-consistency (sampling the same call multiple times) and token
+log-probabilities as fixes: both measure how stable or probable an
+answer was, not whether it was correct, and a deterministic,
+high-probability wrong answer scores as maximally trustworthy on both.
+**Decision:** Replace the confidence threshold with two specific,
+evidence-based checks on Haiku's *output* (`providers/anthropic.ts`):
+`hasSuspectBillingDate` (the billing date exactly matches the email's
+received date — the signature of the first confirmed bug) and
+`hasMissingBillingDateOnATypeThatUsuallyHasOne` (billingDate is null on
+a signal type — new/renewal/price_change/trial_conversion — that
+normally has one; catches the second bug, which had no predictable
+trigger in the input itself — see the 2026-09-14 LEARNED.md entry, where
+the actual cause turned out to be one specific vendor name). Also added:
+`enforceCancellationInvariant`, a deterministic (non-escalating)
+correction for a *guaranteed* contradiction the prompt already implies
+(a cancellation categorically has no billingDate) — corrected in code
+rather than re-asked, since there's no uncertainty about the right
+answer to get a second opinion on.
+**Consequences:** The second check is deliberately blunt — it also
+escalates genuinely-correct null cases (a real email that truly states
+no next charge date), not just bugs. Verified this doesn't introduce
+regressions: those cases still correctly return null after Sonnet
+re-derives them, across two full golden-file runs, but it does mean some
+previously free, fully deterministic Haiku-only cases now take a
+non-deterministic second call on every run, not just when something's
+actually wrong — a real, accepted cost at this app's volume. Confidence
+remains in the schema and gets stored, but is no longer read anywhere to
+gate behavior — kept as one-sided, weak evidence only (worth noting if
+low; proves nothing if high), matching the framing that motivated this
+change. This is inherently incomplete: it catches the two known failure
+signatures, not an unbounded class of future ones — a new, differently-shaped
+bug still needs its own check once discovered, the same way these two
+were.
+**Alternatives considered:** A better-calibrated confidence rubric with
+few-shot examples — rejected; addresses genuine ambiguity, not the
+confident-and-wrong class of error this session actually hit. Self-consistency
+(sample N times, escalate on disagreement) — rejected for a deterministic
+error (temperature: 0 already produces the same wrong answer every time
+for a given input; agreement is not correctness). Token log-probabilities
+— rejected for the same reason, and unconfirmed whether the Messages API
+even exposes them. Multi-model cross-checking on every request — not
+adopted as the default (doubles cost for every email, not just suspect
+ones); the two targeted checks approximate this more cheaply by
+triggering the cross-check only when there's a concrete reason to.
+
+---
+
+## ADR-016 — Claude replaces Gemini for Phase 1d classification, reinstating ADR-004
 
 **Date:** 2026-09-11
 **Status:** accepted
+**Context:** ADR-015 switched Phase 1d's classification from the
+originally-planned Claude (ADR-004) to Gemini Flash, for its free tier.
+That ADR's own Consequences section already flagged the risk: "Free-tier
+rate limits... are a real ceiling this app has never had to design around
+before." That risk materialized concretely: `gemini-3.6-flash`'s free
+tier turned out to cap at **20 requests per day per project**, confirmed
+directly from Google's own `429 RESOURCE_EXHAUSTED` error body
+(`quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier`), not a
+soft or negotiable rate limit — testing during this same session
+exhausted it outright. Before switching back, a genuinely free and fully
+private alternative was evaluated directly rather than assumed away:
+three local Ollama models (`granite3.3:8b`, `qwen3:8b`, `gemma4:latest`)
+were run against the same 5 real golden fixtures already used for
+Gemini. Results: `granite3.3:8b` 3/5 correct (~5s/call), `qwen3:8b` 4/5
+correct (~25s/call, thinking-mode overhead), `gemma4:latest` 1/5 correct
+(~25s/call) with a **systematic bug** — it consistently returned only the
+last two digits of the amount as `amountMinor` (e.g. $17.99 → 99 instead
+of 1799). All three pinned `confidence` at or near 1.0 regardless of
+whether the answer was actually correct. This is exactly what ADR-004
+predicted for local models on this task ("exactly where smaller models
+degrade, and they fail *silently*") — now confirmed empirically rather
+than assumed.
+**Decision:** Reinstate ADR-004's original design as-is: Claude Haiku 4.5
+(`claude-haiku-4-5-20251001`) for primary classification/extraction,
+escalating to Claude Sonnet 5 (`claude-sonnet-5`) when Haiku's own
+reported confidence is below 0.7 (`src/server/providers/anthropic.ts`),
+via native structured output (`output_config.format` with a Zod schema,
+schema-guaranteed by the API — a cleaner mechanism than Gemini's JSON
+mode or Ollama's grammar-constrained decoding, which was observed
+dropping non-required optional fields entirely under the same schema
+shape). Uses the SDK's built-in retry (`maxRetries`, honors
+`retry-after`) rather than a hand-rolled retry loop — no observed need
+for more, unlike Gemini's actual instability.
+**Consequences:** Reintroduces a real per-call cost and the training-data
+question closes rather than needing a future revisit — Anthropic doesn't
+train on API customer data by default, resolving the open question
+`docs/MEMORY.md` was tracking for Gemini's free tier. At personal-inbox
+volume the cost is trivial (low single-digit dollars/month even under
+generous volume assumptions), and Claude's current paid pricing for
+Haiku 4.5 ($1/$5 per MTok) is comparable to or cheaper than Gemini's own
+paid tier per call — so this isn't a cost regression, just a return to
+paying for reliability instead of tolerating a free tier's ceiling. New
+organizations start on Anthropic's Evaluation tier (below-standard rate
+limits until usage history builds) — unlike Gemini's fixed daily cap,
+these are per-minute request/token limits on a continuously-replenishing
+token bucket with no daily reset, and advance automatically; not expected
+to reproduce today's blocker at this app's volume, but unverified until
+live-tested against the real key. The local-Ollama option is now closed
+off rather than left dangling — the empirical evidence above is
+reasonably strong given the confidence-calibration failure was consistent
+across all three models tried, not a one-off.
+**Alternatives considered:** Enable Gemini's paid tier instead of
+switching providers — rejected; would have kept a second full provider
+integration (with its own retry/model-fallback code, since
+`gemini-3.6-flash` also showed real instability under load this session)
+for no cost advantage over Claude. Local Ollama models — rejected after
+direct testing, not assumption; see Context. Gemini Flash with a larger
+Gemini model as escalation, matching the two-tier shape without leaving
+the Gemini ecosystem — not pursued; once paying per call, Claude's
+already-proven two-tier design (ADR-004, `docs/TOOLS.md`) was the more
+natural target than re-deriving an equivalent Gemini-only design.
+
+**Note (2026-09-14):** The escalation *trigger* described above
+(confidence below 0.7) turned out not to work and was replaced —
+confidence was never a reliable signal for the failures actually
+encountered. See ADR-017. The model choice and two-tier shape decided
+here are unaffected and still stand.
+
+---
+
+## ADR-015 — Gemini (Google AI Studio) replaces Claude for Phase 1d classification
+
+**Date:** 2026-09-11
+**Status:** superseded by ADR-016
 **Context:** `docs/TOOLS.md` pre-reasoned Claude Haiku 4.5 (classification)
 with a Sonnet 5 escalation path for low-confidence cases, via
 `@anthropic-ai/sdk`. When Phase 1d actually started, the user asked to

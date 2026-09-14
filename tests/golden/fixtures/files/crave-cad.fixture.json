@@ -1,0 +1,13 @@
+{
+  "subject": "Your Crave subscription payment receipt",
+  "from": "billing@crave.ca",
+  "body": "Hi,\n\nThanks for being a Crave subscriber. We've charged $19.99 (CAD) for your Premium plan.\n\nYour next billing date is October 3, 2026.\n\n- The Crave Team",
+  "receivedDate": "2026-09-03",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Crave",
+    "amountMinor": 1999,
+    "currency": "CAD",
+    "billingDate": "2026-10-03"
+  }
+}

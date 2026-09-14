@@ -1,0 +1,13 @@
+{
+  "subject": "Your Disney Bundle payment confirmation",
+  "from": "no-reply@disneyplus.com",
+  "body": "Hi,\n\nThanks for being a Disney Bundle subscriber (Disney+, Hulu, and ESPN+). We've charged your payment method $19.99 (USD) for your combined plan.\n\nYour next billing date is October 12, 2026.\n\n- The Disney+ Team",
+  "receivedDate": "2026-09-12",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Disney",
+    "amountMinor": 1999,
+    "currency": "USD",
+    "billingDate": "2026-10-12"
+  }
+}

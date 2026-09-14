@@ -109,4 +109,17 @@ describe('parseBodyResponse', () => {
     const result = parseBodyResponse({ payload: { headers: [] } });
     expect(result.body).toBe('');
   });
+
+  it('extracts receivedAt from internalDate', () => {
+    // 2026-09-10T12:00:00.000Z in epoch ms.
+    const result = parseBodyResponse({ payload: { headers: [] }, internalDate: '1789041600000' });
+    expect(result.receivedAt).toBe('2026-09-10');
+  });
+
+  it('falls back to the current date when internalDate is missing or malformed', () => {
+    const missing = parseBodyResponse({ payload: { headers: [] } });
+    const malformed = parseBodyResponse({ payload: { headers: [] }, internalDate: 'not-a-number' });
+    expect(missing.receivedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(malformed.receivedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
 });
