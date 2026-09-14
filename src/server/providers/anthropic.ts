@@ -45,7 +45,15 @@ const PER_CALL_TIMEOUT_MS = 30_000;
 const ClassificationSchema = z.object({
   relevant: z.boolean(),
   signalType: z
-    .enum(['new', 'renewal', 'price_change', 'trial_conversion', 'cancellation'])
+    .enum([
+      'new',
+      'renewal',
+      'price_change',
+      'trial_conversion',
+      'cancellation',
+      'payment_failed',
+      'paused',
+    ])
     .nullable()
     .optional(),
   vendorName: z.string().nullable().optional(),
@@ -67,7 +75,14 @@ const ClassificationSchema = z.object({
 });
 
 export interface ClassificationResult {
-  signalType: 'new' | 'renewal' | 'price_change' | 'trial_conversion' | 'cancellation';
+  signalType:
+    | 'new'
+    | 'renewal'
+    | 'price_change'
+    | 'trial_conversion'
+    | 'cancellation'
+    | 'payment_failed'
+    | 'paused';
   vendorName: string;
   amountMinor: number | null;
   currency: string | null;
@@ -75,16 +90,22 @@ export interface ClassificationResult {
   confidence: number;
 }
 
-/**
- * A cancellation categorically has no future charge behind it — the
- * prompt already says so, and this is a guaranteed contradiction if the
- * model returns one anyway, not a probabilistic "maybe wrong." Corrected
- * deterministically here rather than escalated to Sonnet for a second
- * opinion, since there's nothing to get a second opinion about: the
- * correct value is null by definition, every time.
- */
-function enforceCancellationInvariant(result: ClassificationResult): ClassificationResult {
-  if (result.signalType === 'cancellation' && result.billingDate !== null) {
+// Types where a confirmed charge is categorically impossible — the
+// prompt already says so for all three, and any billingDate the model
+// returns for one of these is a guaranteed contradiction, not a
+// probabilistic "maybe wrong." Extended 2026-09-14 (ADR-019) beyond the
+// original cancellation-only version after a real, observed failure
+// mode: forced into a mismatched category (a pause email with no
+// signalType for "pause"), the model didn't leave billingDate null — it
+// confidently hallucinated a plausible date from the pause's resume
+// date (docs/LEARNED.md, 2026-09-14). This is the deterministic
+// counter-measure: corrected here rather than trusted to a prompt
+// instruction alone, since there's nothing to get a second opinion
+// about — the correct value is null by definition, every time.
+const NO_CONFIRMED_CHARGE_TYPES = new Set(['cancellation', 'paused', 'payment_failed']);
+
+function enforceNoConfirmedChargeInvariant(result: ClassificationResult): ClassificationResult {
+  if (NO_CONFIRMED_CHARGE_TYPES.has(result.signalType) && result.billingDate !== null) {
     return { ...result, billingDate: null };
   }
   return result;
@@ -110,7 +131,7 @@ export function parseClassificationResponse(data: unknown): ClassificationResult
   const result = parsed.data;
   if (!result.relevant || !result.signalType || !result.vendorName) return null;
 
-  return enforceCancellationInvariant({
+  return enforceNoConfirmedChargeInvariant({
     signalType: result.signalType,
     vendorName: result.vendorName,
     amountMinor: parseAmountSpan(result.amountText, result.currency),
@@ -118,6 +139,26 @@ export function parseClassificationResponse(data: unknown): ClassificationResult
     billingDate: parseDateSpan(result.billingDateText),
     confidence: result.confidence,
   });
+}
+
+// Signal types that inherently have no normal "amount + date" shape to
+// show — a review brief is always the right treatment for these,
+// regardless of whether amountMinor happens to be populated (a
+// payment_failed signal legitimately keeps its attempted-charge amount,
+// so the original ADR-018 "all three fields null" check alone wouldn't
+// catch it).
+const SIGNAL_TYPES_ALWAYS_NEED_REVIEW = new Set(['payment_failed', 'paused']);
+
+/**
+ * A signal needs a plain-English review brief (docs/DECISIONS.md
+ * ADR-018, extended by ADR-019) either because extraction came back
+ * fully empty (the original ADR-018 case), or because its signalType
+ * itself represents something a structured amount/date summary can't
+ * represent on its own.
+ */
+export function needsReviewBrief(result: ClassificationResult): boolean {
+  if (SIGNAL_TYPES_ALWAYS_NEED_REVIEW.has(result.signalType)) return true;
+  return result.amountMinor === null && result.currency === null && result.billingDate === null;
 }
 
 function tryParseJson(text: string): unknown {

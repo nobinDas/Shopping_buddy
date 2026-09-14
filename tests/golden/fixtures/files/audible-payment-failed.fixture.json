@@ -4,7 +4,10 @@
   "body": "Hi,\n\nWe were unable to charge your payment method $14.95 (USD) for your Audible membership. Please update your payment details to avoid losing access.\n\nWe'll try again in 3 days.\n\n- The Audible Team",
   "receivedDate": "2026-09-14",
   "expected": {
-    "relevant": false
-  },
-  "_note": "Exploratory case: this is a failed charge attempt, not a confirmed one, and doesn't map to any of the 5 signal types — there's a known, documented gap: no payment_failed signal type exists. Chose relevant:false since forcing this into 'renewal' would misrepresent an unsuccessful charge as a completed one. If a payment_failed type existed, amountMinor ($14.95) and vendorName (Audible) would still be extractable, but billingDate should stay null regardless since 'we'll try again in 3 days' is only a relative reference with no absolute retry date given anywhere in the email."
+    "signalType": "payment_failed",
+    "vendorName": "Audible",
+    "amountMinor": 1495,
+    "currency": "USD",
+    "billingDate": null
+  }
 }

@@ -84,13 +84,16 @@ What extraction produced. **Never stores the email body.**
 | `account_id` | uuid | |
 | `message_id` | text | Provider ID, for idempotency |
 | `content_hash` | text | Sender + subject + amount + date, hashed — cross-inbox dedupe key |
-| `signal_type` | enum | `new` `renewal` `price_change` `trial_conversion` `cancellation` |
+| `signal_type` | enum | `new` `renewal` `price_change` `trial_conversion` `cancellation` `payment_failed` `paused` (last two added in ADR-019) |
 | `vendor_key` | text | |
 | `amount_minor` / `currency` | | Nullable — not every signal carries a price |
 | `billing_date` | date | Nullable |
 | `confidence` | numeric | 0–1, from the model |
 | `status` | enum | `pending` `matched` `merged_duplicate` `dismissed` |
 | `superseded_by` | uuid | Set on the losing row when duplicates collapse |
+| `review_brief` | text | Nullable. A Sonnet-written plain-English paraphrase, set when the signal needs a review brief rather than a structured summary (ADR-018, extended by ADR-019) |
+| `action_required` | boolean | Nullable. Whether the review brief says the user needs to do something |
+| `resolved_at` | timestamptz | Nullable. Set when the user archives a needs-review card; `/review` only shows resolved rows from within the last month |
 
 Unique index on `(account_id, message_id)` — the same message never produces two
 signals, which makes sync retries safe.

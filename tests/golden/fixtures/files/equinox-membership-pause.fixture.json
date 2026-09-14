@@ -4,7 +4,10 @@
   "body": "Hi,\n\nAs requested, we've paused your Equinox membership for 60 days starting September 15, 2026. You will not be billed during this pause.\n\nYour membership will automatically resume on November 14, 2026, and billing will restart at that time.\n\n- The Equinox Team",
   "receivedDate": "2026-09-14",
   "expected": {
-    "relevant": false
-  },
-  "_note": "Exploratory case: a pause is neither a cancellation (the membership isn't ending, and it auto-resumes without a new decision), nor a renewal, price_change, or trial signal — none of the 5 types fit. Chose relevant:false as the closest fit to the current taxonomy, per the task's suggested default, but this is a real subscription-state change a complete tracker would likely want to surface (e.g. a future 'pause' signal type). Flagging as a taxonomy gap rather than a confident classification."
+    "signalType": "paused",
+    "vendorName": "Equinox",
+    "amountMinor": null,
+    "currency": null,
+    "billingDate": null
+  }
 }

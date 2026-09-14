@@ -50,6 +50,38 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-09-14 — Forced into the wrong category, a model hallucinates a plausible answer instead of leaving it null
+**Context:** Two edge-case fixtures (`audible-payment-failed`,
+`equinox-membership-pause`) described events that don't fit any of the
+5 `signal_type` values that existed at the time. Both got classified as
+`renewal` — the closest wrong fit.
+**What I thought:** Every other "doesn't fit" case this codebase had
+handled so far — an irrelevant email, an unrecognized date format, an
+unparseable amount — resulted in a clean `null`, because the whole
+discard-and-log design (`docs/TOOLS.md`) is built around models failing
+by omission when they're uncertain. I expected the same here: a
+mismatched category would just come back with sparse/null fields the
+same way an unfamiliar date format already reliably returns null from
+`parse-date-span.ts`.
+**What was actually true:** The payment-failure case did leave
+`billingDate` null, but the pause case did not — Sonnet returned
+`billingDate: "2026-11-14"`, fabricated from the email's *resume* date,
+with `confidence: 0.75`. Forced to pick one of five labels for something
+that was genuinely none of them, the model didn't hedge; it produced a
+complete, confident, wrong answer. The failure mode wasn't missing data,
+it was invented data that looked exactly like real data.
+**Why it matters:** "The model will leave it null if it's not sure" is
+an assumption that holds for *recognition* failures (an unfamiliar
+format, ambiguous wording) but not for *taxonomy* failures (there is no
+correct label to be uncertain between). The fix has to be two things
+together, not one: a real category for the case so the model has
+something true to say (`payment_failed`, `paused` — ADR-019), *and* a
+deterministic post-hoc guarantee (`enforceNoConfirmedChargeInvariant`)
+for the property that actually matters, because a wider taxonomy only
+reduces how often the model is forced to guess — it doesn't guarantee
+it will admit to guessing when it still has to.
+**Portfolio-worthy:** yes
+
 ### 2026-09-14 — A fresh, uninvolved agent found a real bug I'd have been biased against finding myself
 **Context:** Ran the deferred edge-case fixture-generation prompt — but
 instead of generating the fixtures myself, spawned a genuinely fresh

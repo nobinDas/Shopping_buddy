@@ -27,6 +27,61 @@ not actually examined.
 
 ---
 
+## ADR-019 — Two new signal types (`payment_failed`, `paused`) instead of forcing a fit
+
+**Date:** 2026-09-14
+**Status:** accepted
+**Context:** The edge-case golden-fixture run (see `LEARNED.md`) proved,
+live against the real API, a bug already predicted months earlier as an
+unscoped idea in `PHASES.md`: `signal_type` has no slot for "this
+happened, but it isn't a billing event." A declined-payment email
+(`audible-payment-failed`) got classified as `renewal` with a real
+`amountMinor` — reporting a failed charge as a successful one. A
+membership-pause email (`equinox-membership-pause`) got classified as
+`renewal` too, but with a **hallucinated** `billingDate` fabricated from
+the pause's resume date, not left null. The second finding matters more
+than the first: forced into a mismatched category, the model doesn't
+fail loudly or leave fields empty — it confidently invents a
+plausible-looking value.
+**Decision:** Add two distinct signal types, `payment_failed` and
+`paused` (not one merged catch-all — more precise and queryable later,
+and matches the type name already proposed in `PHASES.md`). Three parts:
+(1) `classify-email.ts`'s prompt gains two new categories with explicit
+counter-examples ("never call this renewal," mirroring this project's
+established fix pattern for prompt instructions that need to actually
+stick); (2) `enforceCancellationInvariant` generalizes to
+`enforceNoConfirmedChargeInvariant`, deterministically forcing
+`billingDate: null` for `cancellation`, `paused`, and `payment_failed`
+alike — the actual fix for the hallucination bug, since it doesn't rely
+on the model complying; (3) a new `needsReviewBrief()` predicate routes
+both new types into the review-brief pipeline already built in ADR-018,
+regardless of whether `amountMinor` happens to be populated (a
+`payment_failed` signal legitimately keeps its attempted-charge amount,
+so ADR-018's original "all three fields null" check alone wouldn't have
+caught it). No new UI, no new database concept beyond the two enum
+values — this reuses ADR-018's machinery entirely.
+**Consequences:** `signal_type` now has 7 values instead of 5 — every
+place that pattern-matches over it (there are exactly three:
+`ClassificationSchema`, `ClassificationResult`, and the escalation-
+trigger set in `anthropic.ts`) needed updating, and any future addition
+repeats that audit. The enum migration (`ALTER TYPE ... ADD VALUE`) is
+additive and irreversible-by-normal-means (Postgres doesn't support
+`DROP VALUE`) — an accepted, permanent schema commitment for what could
+still turn out to be a narrow case. Doesn't fix the model's underlying
+tendency to hallucinate when forced into the wrong category generally —
+only the two specific instances proven live; a third undiscovered
+category-shaped gap would fail the same way until found.
+**Alternatives considered:** One merged type (e.g. `"other"`).
+Rejected on user preference — less precise for future filtering/stats,
+even though it would have been a smaller schema/prompt/fixture diff and
+needed no distinguishing logic (the review brief's own prose already
+explains the specific situation either way). Waiting for Phase 1e and
+representing these as reconciliation proposal types instead. Rejected
+for the same reason ADR-018 rejected it for the original unclear-
+extraction case: these have no manual subscription record to reconcile
+against, and forcing them into that shape means building 1e's data model
+early just to accommodate a different kind of row.
+
 ## ADR-018 — A real "needs review" slice on /review ahead of full Phase 1e reconciliation
 
 **Date:** 2026-09-14

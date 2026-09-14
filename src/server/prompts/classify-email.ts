@@ -27,6 +27,21 @@ If it IS relevant, classify it as exactly one of:
   receipt showing a new number with no explanation)
 - "trial_conversion": a free trial is ending or has converted to paid
 - "cancellation": a subscription is being cancelled or has ended
+- "payment_failed": a payment attempt for an existing subscription was
+  declined or otherwise did not succeed — the email says the charge
+  failed, not that it happened. Never call this "renewal": a renewal
+  implies the charge succeeded.
+- "paused": the subscription is being temporarily suspended (not
+  cancelled, not renewed) and is expected to resume later, automatically
+  or otherwise. Never call this "cancellation" (nothing has ended) or
+  "renewal" (nothing was charged).
+
+For "payment_failed", extract amountText/currency as the amount that was
+attempted (and failed) if the email states it — this is informative even
+though no charge succeeded. For "paused", leave amountText and currency
+null; nothing was charged. For both, leave billingDateText null even if
+the email states a retry date or a resume date — neither a failed
+attempt nor a pause has a confirmed charge date.
 
 Extract vendorName as the actual subscribed *service* (e.g. "HBO Max",
 "Netflix"), not the sending domain if they differ (e.g. "Netflix" not

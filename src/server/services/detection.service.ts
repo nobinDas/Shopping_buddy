@@ -10,6 +10,7 @@ import { listHistory, getMessageMetadata, getMessageBody } from '@/server/provid
 import {
   classifyEmail,
   writeReviewBrief,
+  needsReviewBrief,
   type ClassificationResult,
   type ReviewBrief,
 } from '@/server/providers/anthropic';
@@ -66,17 +67,12 @@ export async function syncAccount(accountId: string, client: DbClient = db): Pro
         receivedAt,
       });
 
-      // Unclear extraction (docs/DECISIONS.md ADR-018): a genuinely
-      // subscription-relevant email that didn't fit the standard
-      // amount/currency/billingDate shape. Written here, still inside
-      // this try block, so it can reuse `body` already fetched above —
-      // it's never persisted, so this is the only place it's available
-      // without a second Gmail fetch.
-      if (
-        classification?.amountMinor === null &&
-        classification.currency === null &&
-        classification.billingDate === null
-      ) {
+      // Unclear extraction, or a signal type with no normal amount/date
+      // shape to show (docs/DECISIONS.md ADR-018, extended by ADR-019).
+      // Written here, still inside this try block, so it can reuse
+      // `body` already fetched above — it's never persisted, so this is
+      // the only place it's available without a second Gmail fetch.
+      if (classification && needsReviewBrief(classification)) {
         try {
           reviewBrief = await writeReviewBrief({
             subject: metadata.subject,

@@ -45,10 +45,16 @@ detour, ADR-015, and over local Ollama models — is unaffected and still
 stands), amounts and billing dates extracted as verbatim text and parsed
 deterministically in code (not computed by the model —
 `domain/parse-amount-span.ts`, `domain/parse-date-span.ts`), and a "Sync
-now" trigger on `/accounts`. `pnpm verify` green (214 unit, 77
-integration) and `pnpm test:golden` green and stable across repeated runs
-— 24/25 real fixtures pass against the live Claude API (the one failure
-is a defensible signal-type judgment call, not a bug). A real end-to-end
+now" trigger on `/accounts`. `pnpm verify` green (232 unit, 80
+integration) and `pnpm test:golden` run against the live Claude API —
+**39/41 fixtures passing** (41 = the original 25 + 16 adversarial
+edge-case fixtures added 2026-09-14 via a fresh, uninvolved agent
+specifically to avoid self-testing bias; that run found and led to
+fixing 3 real bugs — a Sonnet token-budget issue, a French/Arabic
+date-parsing gap, and a category-forcing hallucination bug fixed by
+adding `payment_failed`/`paused` signal types, ADR-019). The 2 remaining
+failures are one known, still-open `new`/`trial_conversion` boundary
+weakness (2 fixtures). A real end-to-end
 sync against a real Gmail account succeeded: 50 messages scanned, only 3
 passed the pre-filter and became real `detected_signals` rows (real
 vendors — Xfinity, Gas South, Tello — with amount/date correctly left
@@ -855,6 +861,42 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-14 — Added payment_failed + paused signal types, fixing a real hallucination bug (ADR-019)
+**Did:** Scoped and built the fix for the two remaining correctness gaps
+the edge-case fixture run found. `signal_type` gained two values,
+`payment_failed` and `paused` (additive migration `0011`), each with an
+explicit prompt counter-example in `classify-email.ts` ("never call this
+renewal"). Generalized `enforceCancellationInvariant` →
+`enforceNoConfirmedChargeInvariant`, which deterministically forces
+`billingDate: null` for `cancellation`/`paused`/`payment_failed`
+regardless of what the model returns — the actual fix for the
+hallucination bug (Sonnet had fabricated a billing date for a pause
+email from its resume date, rather than leaving it null). Added a new
+`needsReviewBrief()` predicate that routes both new types into the
+existing ADR-018 review-brief pipeline even when `amountMinor` is
+populated (a `payment_failed` signal legitimately keeps its
+attempted-charge amount, so ADR-018's original "all fields null" check
+alone wouldn't have caught it) — no UI changes needed at all, this
+entirely reuses machinery already built. Updated both affected fixtures
+and 6 new unit tests. `pnpm verify` green (232 unit, 80 integration).
+Re-ran the full golden suite against the real API: **39/41**, up from
+37/41 — both target fixtures now pass, no regressions. The remaining 2
+failures are the separate, still-open `new`/`trial_conversion` boundary
+issue.
+**Decided:** ADR-019 — two distinct signal types over one merged
+catch-all (user's explicit choice, for future precision/queryability),
+and fixing this now via the existing review-brief pipeline rather than
+waiting for Phase 1e's reconciliation-proposal-type design, closing out
+a `payment_failed` idea that had sat unscoped in `PHASES.md` since
+2026-09-13.
+**Next:** The `new`/`trial_conversion` boundary weakness
+(`hulu-trial-started`, `netflix-extra-member-addon`, plus the older
+`spotify-gift-subscription`) is the one remaining known gap from the
+edge-case run, not yet scoped. Otherwise, Phase 1e (Reconciliation)
+remains the next full phase.
 
 ---
 

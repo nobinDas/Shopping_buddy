@@ -203,6 +203,12 @@ export const signalTypeEnum = pgEnum('signal_type', [
   'price_change',
   'trial_conversion',
   'cancellation',
+  // Added 2026-09-14 (ADR-019) — a declined/failed charge and a
+  // temporary pause were previously forced into 'renewal' (the closest
+  // wrong fit), a confirmed live bug: a failed charge got reported as
+  // succeeded, and a pause got a hallucinated billing date.
+  'payment_failed',
+  'paused',
 ]);
 
 export const signalStatusEnum = pgEnum('signal_status', [

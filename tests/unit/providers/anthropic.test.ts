@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseClassificationResponse, parseReviewBriefResponse } from '@/server/providers/anthropic';
+import {
+  parseClassificationResponse,
+  parseReviewBriefResponse,
+  needsReviewBrief,
+} from '@/server/providers/anthropic';
 
 describe('parseClassificationResponse', () => {
   it('extracts a valid relevant classification, parsing the verbatim date and amount spans', () => {
@@ -158,6 +162,34 @@ describe('parseClassificationResponse', () => {
     });
     expect(result?.billingDate).toBe('2026-10-01');
   });
+
+  it('deterministically nulls billingDate for payment_failed, even if the model returned one', () => {
+    const result = parseClassificationResponse({
+      relevant: true,
+      signalType: 'payment_failed',
+      vendorName: 'Audible',
+      amountText: '$14.95',
+      currency: 'USD',
+      billingDateText: 'September 17, 2026',
+      confidence: 0.6,
+    });
+    expect(result?.signalType).toBe('payment_failed');
+    expect(result?.amountMinor).toBe(1495);
+    expect(result?.billingDate).toBeNull();
+  });
+
+  it('deterministically nulls billingDate for paused, even if the model returned one — this is the exact hallucination bug found live', () => {
+    const result = parseClassificationResponse({
+      relevant: true,
+      signalType: 'paused',
+      vendorName: 'Equinox',
+      billingDateText: 'November 14, 2026',
+      confidence: 0.75,
+    });
+    expect(result?.signalType).toBe('paused');
+    expect(result?.amountMinor).toBeNull();
+    expect(result?.billingDate).toBeNull();
+  });
 });
 
 describe('parseReviewBriefResponse', () => {
@@ -193,5 +225,59 @@ describe('parseReviewBriefResponse', () => {
   it('returns null for malformed data', () => {
     expect(parseReviewBriefResponse(null)).toBeNull();
     expect(parseReviewBriefResponse('not an object')).toBeNull();
+  });
+});
+
+describe('needsReviewBrief', () => {
+  it('is true for payment_failed even when amountMinor is populated', () => {
+    expect(
+      needsReviewBrief({
+        signalType: 'payment_failed',
+        vendorName: 'Audible',
+        amountMinor: 1495,
+        currency: 'USD',
+        billingDate: null,
+        confidence: 0.6,
+      }),
+    ).toBe(true);
+  });
+
+  it('is true for paused, which always has null amount/currency/billingDate', () => {
+    expect(
+      needsReviewBrief({
+        signalType: 'paused',
+        vendorName: 'Equinox',
+        amountMinor: null,
+        currency: null,
+        billingDate: null,
+        confidence: 0.75,
+      }),
+    ).toBe(true);
+  });
+
+  it('is true for the original ADR-018 case: any signal type with all three fields null', () => {
+    expect(
+      needsReviewBrief({
+        signalType: 'renewal',
+        vendorName: 'Xfinity',
+        amountMinor: null,
+        currency: null,
+        billingDate: null,
+        confidence: 0.55,
+      }),
+    ).toBe(true);
+  });
+
+  it('is false for a normal, fully-extracted renewal', () => {
+    expect(
+      needsReviewBrief({
+        signalType: 'renewal',
+        vendorName: 'Netflix',
+        amountMinor: 1599,
+        currency: 'USD',
+        billingDate: '2026-10-05',
+        confidence: 0.95,
+      }),
+    ).toBe(false);
   });
 });

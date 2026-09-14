@@ -31,7 +31,14 @@ interface GoldenFixture {
     | { relevant: false }
     | {
         relevant?: true;
-        signalType: 'new' | 'renewal' | 'price_change' | 'trial_conversion' | 'cancellation';
+        signalType:
+          | 'new'
+          | 'renewal'
+          | 'price_change'
+          | 'trial_conversion'
+          | 'cancellation'
+          | 'payment_failed'
+          | 'paused';
         vendorName: string;
         amountMinor: number | null;
         currency: string | null;
