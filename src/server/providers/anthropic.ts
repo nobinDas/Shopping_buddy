@@ -1,7 +1,6 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import { wrapAnthropic } from 'langsmith/wrappers/anthropic';
 import { z } from 'zod';
 import { CLASSIFY_EMAIL_SYSTEM_PROMPT } from '@/server/prompts/classify-email';
 import { parseDateSpan } from '@/server/domain/parse-date-span';
@@ -68,19 +67,6 @@ export interface ClassificationResult {
 }
 
 /**
- * Pure — no network call — unit-tested directly against fixture JSON.
- * Model output is untrusted input (docs/TOOLS.md), even though Claude's
- * structured outputs (output_config.format below) are schema-guaranteed
- * by the API itself: validate anyway rather than trusting that guarantee
- * blindly. A schema-validation failure, an explicit "not relevant"
- * classification, or a relevant classification missing a signal type or
- * vendor name all return null rather than throwing — discard-and-move-on.
- * Never logs here — this function only ever sees already-fetched email
- * content as input, and docs/SECURITY.md forbids logging it; the caller
- * (which has a safe message ID to correlate against) decides whether to
- * note the skip.
- */
-/**
  * A cancellation categorically has no future charge behind it — the
  * prompt already says so, and this is a guaranteed contradiction if the
  * model returns one anyway, not a probabilistic "maybe wrong." Corrected
@@ -95,6 +81,19 @@ function enforceCancellationInvariant(result: ClassificationResult): Classificat
   return result;
 }
 
+/**
+ * Pure — no network call — unit-tested directly against fixture JSON.
+ * Model output is untrusted input (docs/TOOLS.md), even though Claude's
+ * structured outputs (output_config.format below) are schema-guaranteed
+ * by the API itself: validate anyway rather than trusting that guarantee
+ * blindly. A schema-validation failure, an explicit "not relevant"
+ * classification, or a relevant classification missing a signal type or
+ * vendor name all return null rather than throwing — discard-and-move-on.
+ * Never logs here — this function only ever sees already-fetched email
+ * content as input, and docs/SECURITY.md forbids logging it; the caller
+ * (which has a safe message ID to correlate against) decides whether to
+ * note the skip.
+ */
 export function parseClassificationResponse(data: unknown): ClassificationResult | null {
   const parsed = ClassificationSchema.safeParse(data);
   if (!parsed.success) return null;
@@ -123,7 +122,7 @@ function tryParseJson(text: string): unknown {
 async function callModel(
   client: Anthropic,
   model: string,
-  input: { subject: string; from: string; body: string; receivedAt: string; traceLabel?: string },
+  input: { subject: string; from: string; body: string; receivedAt: string },
 ): Promise<unknown> {
   // Anchor relative-date reasoning ("ends in 3 days") to when this
   // specific email actually arrived (Gmail's own internalDate — see
@@ -161,14 +160,7 @@ async function callModel(
     // JSON matching it. zodOutputFormat reuses ClassificationSchema
     // directly rather than hand-authoring a parallel JSON Schema.
     output_config: { format: zodOutputFormat(ClassificationSchema) },
-  }, {
-    timeout: PER_CALL_TIMEOUT_MS,
-    // TEMPORARY, testing-phase only — names this call's LangSmith run
-    // (e.g. a golden-fixture filename, or a message ID in production) so
-    // traces are browsable by which email they're for, instead of a
-    // generic "ChatAnthropic" label. A no-op field when tracing is off.
-    ...(input.traceLabel ? { langsmithExtra: { name: input.traceLabel } } : {}),
-  });
+  }, { timeout: PER_CALL_TIMEOUT_MS });
 
   const textBlock = message.content.find(
     (block): block is Anthropic.TextBlock => block.type === 'text',
@@ -247,23 +239,12 @@ export async function classifyEmail(input: {
   from: string;
   body: string;
   receivedAt: string;
-  // Optional — only used to name the LangSmith trace (see callModel);
-  // never affects classification. Safe to log per docs/SECURITY.md (a
-  // message ID or a golden-fixture filename, never subject/body).
-  traceLabel?: string;
 }): Promise<ClassificationResult | null> {
   const apiKey = process.env['ANTHROPICS_API_KEY'];
   if (!apiKey) {
     throw new Error('ANTHROPICS_API_KEY is not set.');
   }
-  // TEMPORARY, testing-phase only — LangSmith tracing (full prompt/response
-  // content, including email subject/body, leaves the machine for this).
-  // wrapAnthropic() is an inert no-op unless LANGSMITH_TRACING=true is set
-  // (confirmed by reading the SDK source — isTracingEnabled() gates every
-  // send), so this stays safe to leave wrapped in code; control activation
-  // via .env.local only, never set LANGSMITH_TRACING in a production env.
-  // Remove this wrap (and the `langsmith` dependency) once done testing.
-  const client = wrapAnthropic(new Anthropic({ apiKey, maxRetries: 3 }));
+  const client = new Anthropic({ apiKey, maxRetries: 3 });
 
   const haikuData = await callModel(client, HAIKU_MODEL, input);
   const haikuRaw = ClassificationSchema.safeParse(haikuData);

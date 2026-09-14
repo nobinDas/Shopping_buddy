@@ -88,36 +88,57 @@ Gemini/Ollama) is unaffected and still stands. Produces real
 1.5's mock data until 1e (a separate future phase) builds real
 reconciliation against them.
 
-- [ ] Cheap pre-filter (sender/heuristic) before any LLM call —
-      implemented, unit-tested; live verification against a real Gmail
-      sync still pending
+- [x] Cheap pre-filter (sender/heuristic) before any LLM call —
+      live-verified 2026-09-14: a real first sync scanned 50 messages
+      from a real Gmail inbox and only 3 passed through to become
+      signals, confirming the pre-filter actually screens the majority
+      of real mail before any LLM call, not just in unit tests
 - [x] LLM classification and extraction with Zod-validated JSON output —
       live-verified via `pnpm test:golden` against 25 real anonymised
-      emails, real Claude API (Haiku 4.5 + evidence-based Sonnet 5
-      escalation), stable across repeated runs
+      emails, and separately via a real end-to-end Gmail sync (3 real
+      signals with sensible extracted fields — vendor, signal type,
+      amount/date correctly left null when the email didn't state them)
 - [x] Signal types: new subscription, renewal, price change, trial conversion, cancellation —
       all 5 covered by the golden-file fixtures, all passing
 - [ ] Cross-inbox deduplication — implemented, unit-tested; live
-      verification against a real multi-account sync still pending
+      verification needs a second real connected inbox to exercise
+      cross-account matching, which isn't set up yet — genuinely still
+      pending, not exercised by the single-account live sync
 - [x] Golden-file test set of real anonymised emails with expected
       outputs — 25 real fixtures in `tests/golden/fixtures/files/`
       (20 original + 5 added to isolate a currency-formatting bug —
       see `docs/LEARNED.md`, 2026-09-14), `pnpm test:golden` green
       against the real Claude API
-- [ ] **Remove or replace LangSmith tracing before deployment
-      (2026-09-13)** — `providers/anthropic.ts` currently wraps the
-      Claude client with `wrapAnthropic()` for local testing only (see
-      `.env.example`'s `LANGSMITH_TRACING` section). It sends full
-      prompt/response content — including real email subject/body once
-      this runs against a live inbox — to LangSmith's servers, a third
-      party beyond Gmail and Anthropic that `docs/SECURITY.md`'s data-flow
-      rules never accounted for. Confirmed inert (no network calls) unless
-      `LANGSMITH_TRACING=true` is explicitly set, and that's currently
-      only ever set in `.env.local`, never a deployed env — but the wrap
-      itself, and the `langsmith` dependency, must come back out (or be
-      replaced with the in-house Postgres-log alternative considered
-      earlier, which stays within the existing "safe to log" allowlist)
-      before this app runs against a real Gmail account in production.
+- [x] **Live end-to-end verification against a real Gmail account
+      (2026-09-14)** — found and fixed a real, unrelated bug along the
+      way: a 3-day-old stale dev server process was serving broken code
+      for an existing Watchlist query, masking as a runtime error on
+      every dashboard page; killing it and restarting resolved it.
+      Then hit a genuine 403 from the Gmail API — root-caused to the
+      connected account's OAuth grant having been revoked outside the
+      app at some point (confirmed directly on
+      myaccount.google.com/permissions, which no longer listed the app
+      at all) while the local `email_accounts` row was stale and still
+      "active". Fixed with 🛑-approved disconnect + fresh reconnect,
+      confirmed via the OAuth callback log that `gmail.readonly` was
+      actually granted this time. Full sync then succeeded: "50 scanned
+      · 3 new signals", real `detected_signals` rows with sensible
+      fields, `sync_cursor`/`last_synced_at` updated correctly, a
+      second sync a clean no-op (0 scanned, 0 new, same 3 rows, no
+      duplicates), and the dev server log confirmed to contain zero
+      email subject/body/content anywhere — only route timing and the
+      account id.
+- [x] **Remove LangSmith tracing before touching a real inbox
+      (2026-09-13, removed 2026-09-14)** — was wired into
+      `providers/anthropic.ts` for local debugging only (full
+      prompt/response content, including email subject/body, sent to
+      LangSmith's servers — a third party beyond Gmail and Anthropic that
+      `docs/SECURITY.md`'s data-flow rules never accounted for). Fully
+      removed ahead of live Gmail sync verification: the `wrapAnthropic()`
+      wrap, the `traceLabel` plumbing through `detection.service.ts` and
+      the golden test, the `langsmith` dependency, and the
+      `LANGSMITH_*` env vars (from both `.env.example` and `.env.local`)
+      are all gone. `pnpm verify` confirmed green after removal.
 
 ### 1e — Reconciliation
 

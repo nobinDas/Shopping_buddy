@@ -33,28 +33,37 @@ live-verified against the real Google Routes API and Places API (New).
 all 4 checklist items, live-verified against the real Google Shopping API
 (via SerpApi), a real price-drop badge confirmed end to end across the
 bottom nav → More → Watchlist. **Phase 1d (Detection) is
-implementation-complete and its classification/extraction is
-live-verified**: real `detected_signals` schema, Gmail history.list sync,
-a pre-filter, Claude classification/extraction (Haiku 4.5 primary, Sonnet
-5 escalation triggered by two specific evidence-based output checks, not
-a confidence threshold — ADR-017 replaces the confidence-threshold design
+implementation-complete and fully live-verified end to end against a real
+Gmail account**, LangSmith already removed: real `detected_signals`
+schema, Gmail history.list sync, a pre-filter, Claude
+classification/extraction (Haiku 4.5 primary, Sonnet 5 escalation
+triggered by two specific evidence-based output checks, not a confidence
+threshold — ADR-017 replaces the confidence-threshold design
 ADR-016/ADR-004 originally specified, after it was confirmed not to catch
 real failures; ADR-016's model choice itself — Claude over a Gemini
 detour, ADR-015, and over local Ollama models — is unaffected and still
 stands), amounts and billing dates extracted as verbatim text and parsed
 deterministically in code (not computed by the model —
-`domain/parse-amount-span.ts`, `domain/parse-date-span.ts`), cross-inbox
-dedup, and a "Sync now" trigger on `/accounts`. `pnpm verify` green (214
-unit, 77 integration) and `pnpm test:golden` green and stable across
-repeated runs — 24/25 real fixtures pass against the live Claude API (the
-one failure is a defensible signal-type judgment call, not a bug). A
-temporary LangSmith tracing wrapper is in place for local debugging only,
-gated behind `LANGSMITH_TRACING` (never set in production) — flagged in
-`PHASES.md` to remove before deployment. Still pending: a full end-to-end
-live sync against a real Gmail account (pre-filter + Gmail fetch +
-classify + dedup + DB write, not just classification in isolation) and
-committing this phase's work. Per ADR-010, Phase 1e (Reconciliation) is
-the one remaining phase after that; Microsoft OAuth is likewise
+`domain/parse-amount-span.ts`, `domain/parse-date-span.ts`), and a "Sync
+now" trigger on `/accounts`. `pnpm verify` green (214 unit, 77
+integration) and `pnpm test:golden` green and stable across repeated runs
+— 24/25 real fixtures pass against the live Claude API (the one failure
+is a defensible signal-type judgment call, not a bug). A real end-to-end
+sync against a real Gmail account succeeded: 50 messages scanned, only 3
+passed the pre-filter and became real `detected_signals` rows (real
+vendors — Xfinity, Gas South, Tello — with amount/date correctly left
+null rather than guessed where the source email didn't state them),
+`sync_cursor`/`last_synced_at` updated correctly, a second sync a clean
+no-op, and the server log confirmed to contain zero email content. Along
+the way, found and fixed a real, unrelated bug (a 3-day-stale dev server
+process serving broken Watchlist-query code) and a real account-state
+mismatch (the connected Gmail account's OAuth grant had been revoked
+outside the app, but the local row still said "active" — fixed via a
+🛑-approved disconnect and fresh reconnect). Cross-inbox dedup is the one
+piece still genuinely unverified live — it needs a second connected
+inbox, which doesn't exist yet; everything else in the pipeline is now
+proven against real data, not just fixtures. Per ADR-010, Phase 1e
+(Reconciliation) is the one remaining phase; Microsoft OAuth is likewise
 unscheduled. A mobile-first UI/UX redesign (ADR-009) landed across every
 existing screen earlier.
 **Last updated:** 2026-09-14
@@ -664,39 +673,35 @@ pushed separately (2026-09-11):
 
 ### In progress
 
-**Phase 1d (Detection) is implementation-complete and classification is
-live-verified, stable across repeated runs; full end-to-end sync
-verification and commit are still pending.** What's built:
-`detected_signals` schema (migration `0009`),
-`domain/prefilter.ts`/`content-hash.ts`/`dedupe-signals.ts` (all pure,
-unit-tested), a versioned prompt (`prompts/classify-email.ts` — now asks
-for verbatim `amountText`/`billingDateText` spans rather than computed
-values), two new pure domain parsers
+**Phase 1d (Detection) is implementation-complete and live-verified end
+to end against a real Gmail account.** Classification-accuracy work was
+committed and pushed (`9775a3b`): `detected_signals` schema (migration
+`0009`), `domain/prefilter.ts`/`content-hash.ts`/`dedupe-signals.ts` (all
+pure, unit-tested), a versioned prompt (`prompts/classify-email.ts` —
+asks for verbatim `amountText`/`billingDateText` spans rather than
+computed values), two new pure domain parsers
 (`domain/parse-amount-span.ts`/`parse-date-span.ts`, both unit-tested
 against every real number/date format seen in the fixtures) that do the
 actual currency- and format-aware conversion in code instead of asking
 the model to compute it, `providers/gmail.ts` (Gmail `history.list`
 incremental sync + metadata/body fetch, extending the OAuth-only
-`providers/google.ts`; `getMessageBody` now also extracts `receivedAt`
-from Gmail's own `internalDate`), `providers/anthropic.ts` (Haiku 4.5
+`providers/google.ts`; `getMessageBody` extracts `receivedAt` from
+Gmail's own `internalDate`), `providers/anthropic.ts` (Haiku 4.5
 primary; Sonnet 5 escalation triggered by two specific, evidence-based
 checks on Haiku's output — not a confidence threshold, see ADR-017 —
 plus a deterministic, non-escalating correction for a guaranteed
 contradiction the prompt already implies: a cancellation's `billingDate`
 is always null; native Claude structured output via
-`output_config.format` + `zodOutputFormat`; a temporary LangSmith
-tracing wrap, gated behind `LANGSMITH_TRACING`, testing-only, flagged in
-`PHASES.md` to remove before deployment), `services/detection.service.ts#syncAccount`
+`output_config.format` + `zodOutputFormat`), `services/detection.service.ts#syncAccount`
 (the real orchestration — pre-filter before any full-body fetch or LLM
 call, per `docs/SECURITY.md`), a "Sync now" button per connected account
 on `/accounts`, and a `CRON_SECRET`-protected `/api/cron/sync` route (not
 scheduled yet). `pnpm verify` green (214 unit, 77 integration) and
-`pnpm test:golden` green and stable across two full repeated runs —
-24/25 real anonymised fixtures pass against the live Claude API,
-covering all 5 signal types (the one failure, `spotify-gift-subscription`,
-is a defensible `trial_conversion`-vs-`new` judgment call, not a bug).
-**No UI change to `/review`** — that's Phase 1e, still a separate future
-phase.
+`pnpm test:golden` green and stable across repeated runs — 24/25 real
+anonymised fixtures pass against the live Claude API, covering all 5
+signal types (the one failure, `spotify-gift-subscription`, is a
+defensible `trial_conversion`-vs-`new` judgment call, not a bug). **No UI
+change to `/review`** — that's Phase 1e, still a separate future phase.
 
 Before landing here, Gemini (ADR-015) was tried and retired (ADR-016):
 its free tier turned out to cap at a hard 20 requests/day/model, not a
@@ -720,21 +725,48 @@ trying to prompt-engineer around it. Full detail: ADR-016 and ADR-017 in
 `DECISIONS.md`, four entries in `LEARNED.md` dated 2026-09-11 through
 2026-09-14.
 
+A temporary LangSmith tracing wrap was added for local debugging, then
+fully removed (2026-09-14, after the classification-accuracy commit) once
+past golden-file testing and moving toward the real live sync — the wrap,
+`traceLabel` plumbing, the `langsmith` dependency, and all `LANGSMITH_*`
+env vars are gone; `pnpm verify` confirmed green and `pnpm test:golden`
+identical (24/25) after removal.
+
+The live sync itself surfaced two real, genuine issues unrelated to
+anything built this session, both found and fixed along the way: a
+3-day-stale `pnpm dev` process was silently serving broken code for an
+existing (Phase 5) Watchlist query, masking as a runtime error on every
+dashboard page — killing it and starting fresh resolved it immediately.
+Then a real `403` from the Gmail API on the first sync attempt —
+root-caused (not guessed) to the connected account's Google-side OAuth
+grant having been revoked at some point outside the app (confirmed
+directly on `myaccount.google.com/permissions`, which no longer listed
+the app at all), while the local `email_accounts` row still said
+`active` and its refresh mechanism kept "working" regardless. Fixed with
+an explicit 🛑-approved disconnect (revokes + deletes the stale row) and
+a fresh reconnect through the real Google consent screen; the OAuth
+callback log confirmed `gmail.readonly` was actually granted this time.
+The subsequent real sync succeeded cleanly: 50 messages scanned, 3
+passed the pre-filter and became real `detected_signals` rows (real
+vendors — Xfinity, Gas South, Tello — amount/currency/billingDate
+correctly left null rather than guessed, since those particular emails
+didn't state them), `sync_cursor`/`last_synced_at` updated, a second
+sync a clean no-op (0 scanned, 0 new, still 3 rows, no duplicates), and
+the server log confirmed to contain zero email subject/body/content —
+only route timing and the account id, exactly matching
+`docs/SECURITY.md`'s "safe to log" allowlist.
+
 ### Next
 
-Live end-to-end verification against a real Gmail account: click "Sync
-now" on `/accounts`, confirm real `detected_signals` rows via
-`execute_sql`, confirm no email content appears in the `pnpm dev` server
-log, confirm a second sync is a no-op. Remove the temporary LangSmith
-tracing wrap (already flagged as a pre-deployment blocker in
-`PHASES.md`) before that live run touches a real inbox. Then commit and
-push everything since the last commit (`ca2732a`/`f8a60bc`) — the
-Anthropic switch, the Ollama experiment (already cleaned up, not part of
-the diff), and this session's classification-accuracy work (verbatim
-transcription, the two new parsers, evidence-based escalation, ADR-017)
-are all currently uncommitted local work. **Phase 1e (Reconciliation) is
-the one remaining phase** after that, per ADR-010's build order — the
-last of the two LLM-touching phases deferred to the end of the build.
+Commit and push everything since the last commit (`9775a3b`) — the
+LangSmith removal and all of today's live-sync verification/doc updates
+are currently uncommitted local work. **Phase 1e (Reconciliation) is the
+one remaining phase** after that, per ADR-010's build order — the last
+of the two LLM-touching phases deferred to the end of the build.
+Cross-inbox dedup is the one Phase 1d checklist item still genuinely
+unverified live (needs a second connected inbox, which doesn't exist
+yet) — worth keeping in mind as Phase 1e's own testing will likely want
+a second account anyway.
 
 ### Blocked
 
@@ -806,6 +838,46 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-14 — LangSmith removed; Phase 1d live-verified end to end against a real Gmail account
+**Did:** Removed the temporary LangSmith tracing wrap entirely
+(`providers/anthropic.ts`, `traceLabel` plumbing in
+`detection.service.ts` and the golden test, the `langsmith` dependency,
+all `LANGSMITH_*` env vars) now that testing against golden fixtures was
+done and the next step was a real inbox — confirmed `pnpm verify` and
+`pnpm test:golden` (still 24/25) unaffected by the removal. Committed and
+pushed the whole classification-accuracy body of work (`9775a3b`, no
+Co-Authored-By trailer per standing preference) before starting the live
+sync. Then ran the actual live end-to-end verification: found the dev
+server had been running unchanged since 2026-09-11 (three days), silently
+serving broken code for an unrelated existing Watchlist query — killed it
+and restarted, which fixed it immediately, confirming it was staleness,
+not a real bug. The first real sync attempt then hit a genuine `403` from
+the Gmail API; root-caused (not guessed at) by checking Google's own
+`myaccount.google.com/permissions` page directly, which showed the app
+had no active grant at all, while the local `email_accounts` row still
+said `active`. Fixed with an explicit 🛑-approved disconnect (confirmed
+the row was actually deleted, not soft-disabled) and a fresh reconnect
+through the real Google consent screen — confirmed via the OAuth
+callback's own log line that `gmail.readonly` was genuinely granted this
+time, unlike whatever the stale connection had. The real sync then
+succeeded: 50 messages scanned, 3 real `detected_signals` rows created
+(Xfinity, Gas South, Tello — real recurring services from the actual
+inbox, amount/currency/billingDate correctly left null rather than
+guessed since those specific emails didn't state them),
+`sync_cursor`/`last_synced_at` updated correctly, a second sync a clean
+no-op, and the dev server log confirmed to contain zero email
+subject/body/content anywhere. Updated `PHASES.md`'s Phase 1d checklist
+to reflect all of this — pre-filter and classification are now both
+live-verified, cross-inbox dedup remains the one genuinely-untested item
+(needs a second connected inbox).
+**Decided:** Nothing new scoping-wise — this was verification, a real
+account-state bug fix, and cleanup against the already-committed design,
+not a new architectural choice.
+**Next:** Commit and push this session's LangSmith removal and doc
+updates. Then Phase 1e (Reconciliation) — the one remaining phase.
 
 ---
 

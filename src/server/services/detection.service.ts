@@ -58,7 +58,6 @@ export async function syncAccount(accountId: string, client: DbClient = db): Pro
         from: metadata.from,
         body,
         receivedAt,
-        traceLabel: messageId,
       });
     } catch (error) {
       // A genuine request failure for one message doesn't abort the

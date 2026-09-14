@@ -86,7 +86,6 @@ describe.skipIf(!apiKeySet || fixtures.length === 0)('classifyEmail — golden f
           from: fixture.from,
           body: fixture.body,
           receivedAt: fixture.receivedDate,
-          traceLabel: name,
         });
 
         if (fixture.expected.relevant === false) {
