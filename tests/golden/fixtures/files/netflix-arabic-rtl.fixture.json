@@ -1,0 +1,13 @@
+{
+  "subject": "تم تجديد اشتراكك في Netflix",
+  "from": "info@netflix.com",
+  "body": "مرحبًا،\n\nنود إعلامك بأنه تم تجديد اشتراكك في خطة Netflix القياسية. تم خصم مبلغ 45.00 ريال سعودي (SAR) من طريقة الدفع الخاصة بك.\n\nتاريخ التجديد القادم: 14 أكتوبر 2026.\n\nفريق Netflix",
+  "receivedDate": "2026-09-14",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Netflix",
+    "amountMinor": 4500,
+    "currency": "SAR",
+    "billingDate": "2026-10-14"
+  }
+}

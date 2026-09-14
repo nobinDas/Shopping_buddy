@@ -13,11 +13,22 @@
  * whether asking for a verbatim copy instead of a computed value avoids
  * that failure mode.
  *
- * Covers the five formats confirmed present across this app's real
- * golden-file fixtures — not a general-purpose date parser. Returns null
- * for anything it doesn't recognize (docs/TOOLS.md: "discard-and-log on
- * failure rather than persisting a malformed signal" — a date we can't
- * confidently parse should become null, not a guess).
+ * Covers the formats confirmed present across this app's real golden-file
+ * fixtures — not a general-purpose date parser. Returns null for anything
+ * it doesn't recognize (docs/TOOLS.md: "discard-and-log on failure rather
+ * than persisting a malformed signal" — a date we can't confidently parse
+ * should become null, not a guess).
+ *
+ * Month-name regexes use `\p{L}` (Unicode "any letter", `u` flag) rather
+ * than `[A-Za-z]` — a real bug found via a golden-fixture edge-case run
+ * (docs/LEARNED.md, 2026-09-14): a correctly-transcribed Arabic date
+ * ("14 أكتوبر 2026") didn't even match the day-month-year regex at all,
+ * since Arabic script isn't in `[A-Za-z]`, and a French one ("14 octobre
+ * 2026") matched the regex but failed the (English-only) month lookup.
+ * `\p{L}` fixes the matching for any script; which *languages* are
+ * actually understood is still controlled deliberately by which
+ * `*_MONTHS` map a given date format checks against — this still returns
+ * null for a real month name in an unsupported language, not a guess.
  */
 
 const ENGLISH_MONTHS: Record<string, number> = {
@@ -50,6 +61,56 @@ const GERMAN_MONTHS: Record<string, number> = {
   november: 11,
   dezember: 12,
 };
+
+const FRENCH_MONTHS: Record<string, number> = {
+  janvier: 1,
+  février: 2,
+  fevrier: 2,
+  mars: 3,
+  avril: 4,
+  mai: 5,
+  juin: 6,
+  juillet: 7,
+  août: 8,
+  aout: 8,
+  septembre: 9,
+  octobre: 10,
+  novembre: 11,
+  décembre: 12,
+  decembre: 12,
+};
+
+// Modern Standard Arabic, Gregorian month names (Levant/Gulf convention —
+// the form actually used in real billing emails, as opposed to the
+// Maghreb convention that transliterates the French names).
+const ARABIC_MONTHS: Record<string, number> = {
+  يناير: 1,
+  فبراير: 2,
+  مارس: 3,
+  أبريل: 4,
+  إبريل: 4,
+  مايو: 5,
+  يونيو: 6,
+  يوليو: 7,
+  أغسطس: 8,
+  سبتمبر: 9,
+  أكتوبر: 10,
+  نوفمبر: 11,
+  ديسمبر: 12,
+};
+
+// Shared by every "day month year" / "month day, year" format below —
+// tries each map in order so one regex can serve several languages that
+// happen to share the same date word-order, without conflating which
+// specific languages are actually supported.
+function lookupMonth(monthName: string, maps: Record<string, number>[]): number | undefined {
+  const lower = monthName.toLowerCase();
+  for (const map of maps) {
+    const month = map[lower];
+    if (month) return month;
+  }
+  return undefined;
+}
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -86,10 +147,10 @@ export function parseDateSpan(text: string | null | undefined): string | null {
   }
 
   // German: 7. Oktober 2026
-  const deMatch = /^(\d{1,2})\.\s*([A-Za-zÄÖÜäöü]+)\s+(\d{4})$/.exec(trimmed);
+  const deMatch = /^(\d{1,2})\.\s*(\p{L}+)\s+(\d{4})$/u.exec(trimmed);
   if (deMatch) {
     const [, d, monthName, y] = deMatch as unknown as [string, string, string, string];
-    const month = GERMAN_MONTHS[monthName.toLowerCase()];
+    const month = lookupMonth(monthName, [GERMAN_MONTHS]);
     const day = Number(d);
     const year = Number(y);
     if (month && isValidCalendarDate(year, month, day)) {
@@ -99,10 +160,10 @@ export function parseDateSpan(text: string | null | undefined): string | null {
   }
 
   // English long form: "September 8, 2027" / "October 1, 2026"
-  const enLongMatch = /^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$/.exec(trimmed);
+  const enLongMatch = /^(\p{L}+)\s+(\d{1,2}),\s*(\d{4})$/u.exec(trimmed);
   if (enLongMatch) {
     const [, monthName, d, y] = enLongMatch as unknown as [string, string, string, string];
-    const month = ENGLISH_MONTHS[monthName.toLowerCase()];
+    const month = lookupMonth(monthName, [ENGLISH_MONTHS]);
     const day = Number(d);
     const year = Number(y);
     if (month && isValidCalendarDate(year, month, day)) {
@@ -111,11 +172,14 @@ export function parseDateSpan(text: string | null | undefined): string | null {
     return null;
   }
 
-  // International, no comma: "15 October 2026"
-  const intlMatch = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/.exec(trimmed);
+  // International, no comma: "15 October 2026" / "14 octobre 2026" /
+  // "14 أكتوبر 2026" — same day-month-year word order across English,
+  // French, and Arabic, so one regex serves all three; the month-name
+  // maps are what actually decide which languages are understood.
+  const intlMatch = /^(\d{1,2})\s+(\p{L}+)\s+(\d{4})$/u.exec(trimmed);
   if (intlMatch) {
     const [, d, monthName, y] = intlMatch as unknown as [string, string, string, string];
-    const month = ENGLISH_MONTHS[monthName.toLowerCase()];
+    const month = lookupMonth(monthName, [ENGLISH_MONTHS, FRENCH_MONTHS, ARABIC_MONTHS]);
     const day = Number(d);
     const year = Number(y);
     if (month && isValidCalendarDate(year, month, day)) {

@@ -1,0 +1,13 @@
+{
+  "subject": "Votre abonnement Deezer Premium a été renouvelé",
+  "from": "facturation@deezer.com",
+  "body": "Bonjour,\n\nNous vous confirmons que votre abonnement Deezer Premium a été renouvelé. Un montant de 10,99 € (EUR) a été débité de votre moyen de paiement.\n\nProchaine date de renouvellement : 14 octobre 2026.\n\nL'équipe Deezer",
+  "receivedDate": "2026-09-14",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Deezer",
+    "amountMinor": 1099,
+    "currency": "EUR",
+    "billingDate": "2026-10-14"
+  }
+}

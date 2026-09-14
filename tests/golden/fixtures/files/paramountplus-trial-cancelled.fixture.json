@@ -1,0 +1,13 @@
+{
+  "subject": "Your Paramount+ trial has been cancelled",
+  "from": "no-reply@paramountplus.com",
+  "body": "Hi,\n\nWe've cancelled your free trial of Paramount+ as requested. You will not be charged.\n\nYour access will end on September 20, 2026.\n\n- The Paramount+ Team",
+  "receivedDate": "2026-09-13",
+  "expected": {
+    "signalType": "cancellation",
+    "vendorName": "Paramount+",
+    "amountMinor": null,
+    "currency": null,
+    "billingDate": null
+  }
+}

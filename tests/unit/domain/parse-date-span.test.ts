@@ -48,4 +48,19 @@ describe('parseDateSpan', () => {
     expect(parseDateSpan('13/01/2026')).toBeNull(); // not a valid MM/DD
     expect(parseDateSpan('2026-02-30')).toBeNull();
   });
+
+  it('parses French "D Month YYYY" with no comma', () => {
+    expect(parseDateSpan('14 octobre 2026')).toBe('2026-10-14');
+    expect(parseDateSpan('1 août 2026')).toBe('2026-08-01');
+    expect(parseDateSpan('1 aout 2026')).toBe('2026-08-01'); // unaccented variant
+  });
+
+  it('parses Arabic "D Month YYYY" with no comma', () => {
+    expect(parseDateSpan('14 أكتوبر 2026')).toBe('2026-10-14');
+    expect(parseDateSpan('5 يناير 2027')).toBe('2027-01-05');
+  });
+
+  it('returns null for a real month name in an unsupported language, not a guess', () => {
+    expect(parseDateSpan('14 ottobre 2026')).toBeNull(); // Italian, not supported
+  });
 });

@@ -1,0 +1,13 @@
+{
+  "subject": "Notion receipt",
+  "from": "receipts@notion.so",
+  "body": "Notion Plus: $4.99 charged.",
+  "receivedDate": "2026-09-10",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Notion",
+    "amountMinor": 499,
+    "currency": "USD",
+    "billingDate": null
+  }
+}

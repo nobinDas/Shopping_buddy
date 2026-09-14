@@ -1,0 +1,14 @@
+{
+  "subject": "Your Amazon Prime and Kindle Unlimited renewal receipt",
+  "from": "no-reply@amazon.com",
+  "body": "Hi,\n\nThis month's charge to your payment method includes two renewals:\n\n- Amazon Prime membership: $139.00 (USD)\n- Kindle Unlimited membership: $11.99 (USD)\n\nTotal charged: $150.99 (USD).\n\nYour next billing date is September 14, 2027.\n\n- The Amazon Team",
+  "receivedDate": "2026-09-14",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Amazon Prime",
+    "amountMinor": 13900,
+    "currency": "USD",
+    "billingDate": "2027-09-14"
+  },
+  "_note": "Two genuinely distinct subscriptions billed in one email; extraction currently pulls only one signal per email. Guessed it would latch onto the first-listed/larger line item (Amazon Prime, $139.00) over Kindle Unlimited ($11.99), but this is a real guess — either figure, or the combined $150.99 total, is a plausible extraction outcome worth checking against."
+}

@@ -1,0 +1,13 @@
+{
+  "subject": "You've added an extra member to your Netflix account",
+  "from": "info@netflix.com",
+  "body": "Hi,\n\nYou've successfully added an extra member to your Netflix Standard plan.\n\nWe've charged your payment method $7.99 (USD) for this extra member slot. This charge will repeat each month in addition to your regular plan charge.\n\nNext billing date: October 14, 2026.\n\n- The Netflix Team",
+  "receivedDate": "2026-09-14",
+  "expected": {
+    "signalType": "new",
+    "vendorName": "Netflix",
+    "amountMinor": 799,
+    "currency": "USD",
+    "billingDate": "2026-10-14"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "subject": "Your Backblaze annual renewal receipt",
+  "from": "billing@backblaze.com",
+  "body": "Hi,\n\nYour Backblaze Personal Backup annual plan has renewed for $99.00 (USD).\n\nWe've also charged a one-time purchase of Extended Version History for $15.00 (USD).\n\nTotal charged to your card: $114.00 (USD).\n\nYour next renewal date is September 14, 2027.\n\n- The Backblaze Team",
+  "receivedDate": "2026-09-14",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Backblaze",
+    "amountMinor": 9900,
+    "currency": "USD",
+    "billingDate": "2027-09-14"
+  }
+}

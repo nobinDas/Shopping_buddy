@@ -1,0 +1,13 @@
+{
+  "subject": "Good news: your ClassPass plan is getting cheaper",
+  "from": "no-reply@classpass.com",
+  "body": "Hi,\n\nWe're lowering the price of your ClassPass membership. Starting your next billing cycle on October 20, 2026, you'll be charged $79.00 (USD) per month instead of $99.00 (USD).\n\nNo action is needed on your part.\n\n- The ClassPass Team",
+  "receivedDate": "2026-09-20",
+  "expected": {
+    "signalType": "price_change",
+    "vendorName": "ClassPass",
+    "amountMinor": 7900,
+    "currency": "USD",
+    "billingDate": "2026-10-20"
+  }
+}

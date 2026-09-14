@@ -1,0 +1,13 @@
+{
+  "subject": "Your Spotify Premium payment receipt",
+  "from": "no-reply@spotify.com",
+  "body": "Hi,\n\nWe've charged your payment method 119 kr for your Spotify Premium subscription.\n\nYour next billing date is October 14, 2026.\n\n- The Spotify Team",
+  "receivedDate": "2026-09-14",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "Spotify",
+    "amountMinor": 11900,
+    "currency": "SEK",
+    "billingDate": "2026-10-14"
+  }
+}

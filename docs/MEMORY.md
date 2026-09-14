@@ -858,6 +858,41 @@ next session, and pretending otherwise wastes its time.
 
 ---
 
+### 2026-09-14 — Ran the deferred edge-case fixture prompt via a fresh agent; found and fixed a real date-parsing bug
+**Did:** Instead of generating the deferred edge-case fixtures myself
+(risking bias toward cases I already knew the pipeline handled), spawned
+a fresh agent with no memory of this project's specific prompt/bug
+history to write 16 new adversarial golden fixtures and run them for
+real. Result: 10/16 passed, 6 failed, no regressions in the 25 existing
+fixtures (baseline 24/25 held). Investigated the failures: 2 of the 6
+(a French-language date, an Arabic-language date) turned out to share
+one root cause — `parse-date-span.ts`'s regexes used `[A-Za-z]` for
+month names, so French matched the pattern but failed an English-only
+lookup, and Arabic didn't match the regex at all. Fixed by switching to
+`\p{L}` (Unicode "any letter") and adding `FRENCH_MONTHS`/`ARABIC_MONTHS`
+maps, looked up in sequence via a small shared `lookupMonth` helper — the
+character-matching fix is language-agnostic, but which languages are
+actually understood is still explicit and deliberate (an unsupported
+language's month name still correctly returns null, not a guess). 6 new
+unit tests. Re-ran both previously-failing fixtures against the real
+API — both pass now — then the full golden suite: 37/41, no regressions.
+The other 4 failures are real but separate issues, written up in
+`LEARNED.md` and left unfixed pending a decision: a declined-payment
+email read as a successful renewal, a membership pause forced into
+`renewal` with a hallucinated date (both stem from the same gap — no
+signal type exists for "not a billing event"), the recurring `new`/
+`trial_conversion` boundary confusion, and the pre-existing known
+gift-subscription judgment call.
+**Decided:** Nothing new scoping-wise. Confirmed (again) that delegating
+test-case generation to an uninvolved agent surfaces real gaps that
+self-testing tends to miss — see the new `LEARNED.md` entry.
+**Next:** Two real, unfixed correctness gaps are on the table if wanted
+(payment-failure misclassification, pause-forced-into-renewal) — both
+point toward needing a signal type for "not actually a billing event."
+Otherwise, Phase 1e (Reconciliation) remains the next full phase.
+
+---
+
 ### 2026-09-14 — Fixed the known 3-decimal-currency gap in parse-amount-span.ts
 **Did:** `decimalPlacesFor()` only distinguished zero-decimal currencies
 (JPY/KRW/VND) from a hardcoded 2-decimal default — a currency with a

@@ -1,0 +1,13 @@
+{
+  "subject": "Welcome to Grammarly Premium Annual",
+  "from": "billing@grammarly.com",
+  "body": "Hi,\n\nThanks for subscribing to Grammarly Premium Annual — that's just $5.00/month, billed annually. We've charged your card $60.00 (USD) today for your first year of Grammarly Premium.\n\nYour plan will renew annually on September 14, 2027.\n\n- The Grammarly Team",
+  "receivedDate": "2026-09-14",
+  "expected": {
+    "signalType": "new",
+    "vendorName": "Grammarly",
+    "amountMinor": 6000,
+    "currency": "USD",
+    "billingDate": "2027-09-14"
+  }
+}

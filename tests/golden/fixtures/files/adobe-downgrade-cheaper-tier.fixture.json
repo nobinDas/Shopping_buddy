@@ -1,0 +1,13 @@
+{
+  "subject": "Your Adobe Creative Cloud plan has changed",
+  "from": "message@adobe.com",
+  "body": "Hi,\n\nThis confirms you've switched from Creative Cloud All Apps to the Photoshop Single App plan. Starting your next billing date, November 5, 2026, you'll be charged $22.99 (USD) per month instead of $59.99 (USD).\n\nYour subscription remains active.\n\n- The Adobe Team",
+  "receivedDate": "2026-10-05",
+  "expected": {
+    "signalType": "price_change",
+    "vendorName": "Adobe",
+    "amountMinor": 2299,
+    "currency": "USD",
+    "billingDate": "2026-11-05"
+  }
+}

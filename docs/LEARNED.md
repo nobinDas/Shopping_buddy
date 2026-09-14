@@ -50,6 +50,40 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-09-14 — A fresh, uninvolved agent found a real bug I'd have been biased against finding myself
+**Context:** Ran the deferred edge-case fixture-generation prompt — but
+instead of generating the fixtures myself, spawned a genuinely fresh
+agent (no memory of this project's specific prompt wording or bug
+history) to do it, specifically to avoid tailoring fixtures toward cases
+I already knew worked. It generated 16 new fixtures and ran them for
+real: 10 passed, 6 failed.
+**What I thought:** `parse-date-span.ts`'s regexes used `[A-Za-z]+` for
+month names because every fixture up to that point (English, German,
+Japanese) either used Latin letters or a wholly different format
+(Japanese's `年月日`). This felt like a complete, if small, set of
+formats — the doc comment even called it "not a general-purpose date
+parser" on purpose, implying the gap was a known, accepted scope cut.
+**What was actually true:** Two of the six failures were the exact same
+root cause, in the one function I'd assumed was fully covered: a French
+date ("14 octobre 2026") matched the day-month-year regex but failed the
+English-only month lookup; an Arabic date ("14 أكتوبر 2026") didn't even
+match the regex, since Arabic script isn't in `[A-Za-z]`. Both emails
+extracted vendor/amount/currency correctly — only the date silently came
+back null. Fixed by switching the regexes to `\p{L}` (Unicode "any
+letter") and adding French/Arabic month-name maps looked up in sequence;
+verified against the real API afterward (both fixtures now pass, 37/41
+overall, no regressions).
+**Why it matters:** I would not have picked "an Arabic-language email"
+as a test case on my own — not because I'd deliberately avoid it, but
+because the existing coverage (English/German/Japanese) felt
+representative enough that the gap wasn't visible from inside the
+codebase. A fresh agent with no attachment to what already "felt covered"
+found it in one pass. The lesson isn't about dates specifically — it's
+that self-testing has a blind spot shaped exactly like your own mental
+model of the system, and the fix (delegate test-case generation to
+someone/something without that model) is cheap and repeatable.
+**Portfolio-worthy:** yes
+
 ### 2026-09-14 — Sonnet can return a response with zero text blocks, silently dropping a message from sync
 **Context:** Live-verifying the new "needs review" brief feature
 (ADR-018) by deleting and re-syncing 3 real signals. Xfinity and Tello

@@ -1,0 +1,13 @@
+{
+  "subject": "Your OSN+ subscription receipt",
+  "from": "billing@osnplus.com",
+  "body": "Hi,\n\nThank you for your continued OSN+ subscription. We've charged your payment method KWD 4.990 for your monthly plan.\n\nYour next billing date is October 5, 2026.\n\n- The OSN+ Team",
+  "receivedDate": "2026-09-05",
+  "expected": {
+    "signalType": "renewal",
+    "vendorName": "OSN+",
+    "amountMinor": 4990,
+    "currency": "KWD",
+    "billingDate": "2026-10-05"
+  }
+}

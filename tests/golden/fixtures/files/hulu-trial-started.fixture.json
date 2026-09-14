@@ -1,0 +1,13 @@
+{
+  "subject": "Your free trial of Hulu has started!",
+  "from": "no-reply@hulu.com",
+  "body": "Hi,\n\nWelcome to Hulu! Your 30-day free trial has started today. Enjoy full access to our library.\n\nIf you don't cancel, we'll charge your payment method $7.99 (USD) on October 14, 2026 to continue your subscription.\n\n- The Hulu Team",
+  "receivedDate": "2026-09-14",
+  "expected": {
+    "signalType": "new",
+    "vendorName": "Hulu",
+    "amountMinor": 799,
+    "currency": "USD",
+    "billingDate": "2026-10-14"
+  }
+}
