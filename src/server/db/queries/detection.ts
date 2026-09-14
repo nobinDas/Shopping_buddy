@@ -46,6 +46,32 @@ export async function markSignalDuplicate(
 }
 
 /**
+ * Every `pending` signal across every account — reconciliation
+ * (`services/reconciliation.service.ts`) runs globally, not per-account,
+ * since a subscription in the manual record has no notion of which
+ * inbox a matching signal came from. Deduplication (dedupeSignals) has
+ * already run per-sync by the time this is read.
+ */
+export async function getAllPendingSignals(client: DbClient = db): Promise<DetectedSignalRow[]> {
+  return client.select().from(detectedSignals).where(eq(detectedSignals.status, 'pending'));
+}
+
+/**
+ * Transitions a signal to `matched` (a reconciliation outcome was
+ * applied or its proposal accepted) or `dismissed` (its proposal was
+ * rejected) — the two terminal, non-duplicate statuses reconciliation
+ * can put a signal into. Distinct from `markSignalDuplicate`, which also
+ * sets `supersededBy`; this never does.
+ */
+export async function updateSignalStatus(
+  id: string,
+  status: 'matched' | 'dismissed',
+  client: DbClient = db,
+): Promise<void> {
+  await client.update(detectedSignals).set({ status }).where(eq(detectedSignals.id, id));
+}
+
+/**
  * Real "needs review" signals for /review's needs-review section
  * (docs/DECISIONS.md ADR-018) — deliberately separate from the mock
  * proposal cards on that page. 'pending': still awaiting the user, has a

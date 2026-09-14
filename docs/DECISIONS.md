@@ -27,6 +27,68 @@ not actually examined.
 
 ---
 
+## ADR-020 — Three scoping calls made while implementing Phase 1e's reconciliation
+**Date:** 2026-09-14
+**Status:** accepted
+**Context:** `docs/DATA_MODEL.md`'s reconciliation section specifies the match
+weights, thresholds, and outcome table in detail, but leaves three real
+implementation questions unanswered: what to do with a match that's
+"ambiguous" (0.4–0.7) given the `proposal_type` enum has no slot for it; how
+accepting a `discovery` proposal should actually create a subscription, given
+a detected signal has no notion of billing cycle at all; and what
+`payment_failed`/`paused` signals (added later, ADR-019, after this section
+of `DATA_MODEL.md` was written) should do in reconciliation, which never
+anticipated them.
+**Decision:**
+1. **Ambiguous matches (0.4–0.7) surface as a `discovery` proposal**, not a
+   new proposal type. `DATA_MODEL.md` says to "surface to the user with both
+   candidates" — this is done through the `reasoning` text (which names up to
+   three scored candidates) rather than a dedicated candidate-picker UI.
+   Discovery is the safest existing type to reuse: it proposes nothing about
+   an existing record, unlike misfiling it as a `price_update`/`date_update`
+   against a guessed candidate would.
+2. **Accepting a `discovery` proposal routes to a pre-filled "Add
+   subscription" form** (`/subscriptions/new?proposalId=…`) rather than
+   `acceptProposal` inserting a subscription row directly. A detected signal
+   never carries a billing cycle, so a direct insert would have to guess one
+   (`monthly` is the common case but often wrong) — CLAUDE.md is explicit
+   that manual entry is the primary, authoritative source and detection may
+   never assert a value the user didn't. The user reviews and can edit every
+   pre-filled field before it's saved; `createSubscriptionAction` links the
+   proposal to whatever they actually submit.
+3. **`payment_failed`/`paused` signals are excluded from `domain/reconcile.ts`
+   entirely** (`reconcileSignal` only accepts the five signal types
+   `DATA_MODEL.md`'s Step 3 table actually classifies). They already always
+   get a review brief regardless of extraction completeness (ADR-019) and
+   surface on `/review` through that separate path — giving them a
+   subscription-mutating reconciliation outcome as well isn't specified
+   anywhere and risks a `payment_failed` signal's real attempted-charge
+   amount being treated as a legitimate `price_update`.
+**Consequences:** (1) means a genuinely ambiguous match never gets a UI
+affordance to say "yes, that's the existing one" — the user's only path is
+rejecting the discovery and manually editing the existing subscription
+instead, which is more friction than a real candidate picker would be.
+Revisit if ambiguous matches turn out to be common in practice. (2) means
+"accept" for a discovery is a full manual entry, not a one-click action like
+the other three proposal types — slower, but consistent with every other
+manual-entry-primacy decision in this project (ADR-001). (3) means a
+declined-payment or paused subscription is never automatically corroborated
+or flagged as a discrepancy against the manual record — acceptable for now
+since ADR-019's review-brief path already surfaces it to the user, just
+without reconciliation's structured proposal machinery.
+**Alternatives considered:** Adding a sixth `proposal_type` ("ambiguous")
+with a real multi-candidate payload — more correct, deferred as unscoped UI
+work no existing mock ever designed for. Auto-creating a subscription from a
+discovery with `cycle: 'monthly'` as a guessed default — rejected outright,
+directly contradicts CLAUDE.md's manual-entry-authoritative rule. Extending
+`reconcile.ts` to give `payment_failed`/`paused` a `price_update`-shaped
+outcome — rejected: `DATA_MODEL.md` never specifies what "agree" would even
+mean for a failed charge, and ADR-019's invariant already forces
+`billingDate: null` for these types, so half of Step 3's classification
+table doesn't apply to them anyway.
+
+---
+
 ## ADR-019 — Two new signal types (`payment_failed`, `paused`) instead of forcing a fit
 
 **Date:** 2026-09-14

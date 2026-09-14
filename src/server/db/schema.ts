@@ -102,6 +102,12 @@ export const subscriptions = pgTable(
 
     notes: text('notes'),
 
+    // Phase 1e: stamped whenever reconciliation applies a `confirm`
+    // outcome (docs/DATA_MODEL.md) — a detected signal's amount and
+    // billing date agreed with this record. Null means "never
+    // corroborated by a detected signal," not "unverified as in wrong."
+    lastVerifiedAt: timestamp('last_verified_at', { withTimezone: true }),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -271,6 +277,62 @@ export const detectedSignals = pgTable(
     uniqueIndex('detected_signals_account_message_idx').on(table.accountId, table.messageId),
     index('detected_signals_status_idx').on(table.status),
     index('detected_signals_content_hash_idx').on(table.contentHash),
+  ],
+).enableRLS();
+
+// ── reconciliation_proposals ────────────────────────────────────────
+// Phase 1e. Every disagreement or discovery `domain/reconcile.ts` finds
+// surfaces here rather than mutating a subscription silently — see
+// docs/DATA_MODEL.md. A `confirm` outcome is the one exception that
+// applies automatically (it asserts nothing new about a user-entered
+// value), but even then a row is still written here, already
+// `accepted`, so the action has a `reasoning` record — CLAUDE.md: "Every
+// automated financial suggestion writes a `reasoning` record."
+
+export const proposalTypeEnum = pgEnum('proposal_type', [
+  'confirm',
+  'price_update',
+  'date_update',
+  'discovery',
+  'cancellation',
+]);
+
+export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'accepted', 'rejected']);
+
+export const reconciliationProposals = pgTable(
+  'reconciliation_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    signalId: uuid('signal_id')
+      .notNull()
+      .references(() => detectedSignals.id, { onDelete: 'cascade' }),
+    // Null means a discovery — no existing subscription this signal
+    // matched confidently enough to attach to (docs/DATA_MODEL.md).
+    subscriptionId: uuid('subscription_id').references(() => subscriptions.id, {
+      onDelete: 'cascade',
+    }),
+
+    proposalType: proposalTypeEnum('proposal_type').notNull(),
+    // Shape depends on proposalType — e.g. { amountMinor, currency } for
+    // price_update, { billingDate } for date_update. Not modeled as
+    // separate nullable columns: only one shape is ever populated per
+    // row, and jsonb keeps the table from growing a column per type.
+    proposedChanges: jsonb('proposed_changes').notNull().default({}),
+
+    // Required, never decorative — see docs/DATA_MODEL.md: "the
+    // difference between an auditable suggestion and a black box moving
+    // money numbers around."
+    reasoning: text('reasoning').notNull(),
+
+    status: proposalStatusEnum('status').notNull().default('pending'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('reconciliation_proposals_signal_id_idx').on(table.signalId),
+    index('reconciliation_proposals_status_idx').on(table.status),
   ],
 ).enableRLS();
 

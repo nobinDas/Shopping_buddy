@@ -10,6 +10,7 @@ import type {
   watchlistItems,
   watchlistPriceHistory,
   detectedSignals,
+  reconciliationProposals,
 } from '@/server/db/schema';
 
 type NewSubscription = typeof subscriptions.$inferInsert;
@@ -23,6 +24,7 @@ type NewPreferredStore = typeof preferredStores.$inferInsert;
 type NewWatchlistItem = typeof watchlistItems.$inferInsert;
 type NewWatchlistPriceHistory = typeof watchlistPriceHistory.$inferInsert;
 type NewDetectedSignal = typeof detectedSignals.$inferInsert;
+type NewReconciliationProposal = typeof reconciliationProposals.$inferInsert;
 
 /**
  * Builds a valid `subscriptions` insert row with sensible defaults,
@@ -186,6 +188,23 @@ export function buildDetectedSignal(
     signalType: 'renewal',
     vendorKey: 'test vendor',
     confidence: '0.90',
+    ...overrides,
+  };
+}
+
+/**
+ * Builds a valid `reconciliation_proposals` insert row. `signalId` has no
+ * default — every caller has a real detected_signals id to attach it to.
+ */
+export function buildReconciliationProposal(
+  signalId: string,
+  overrides: Partial<NewReconciliationProposal> = {},
+): NewReconciliationProposal {
+  return {
+    signalId,
+    proposalType: 'discovery',
+    proposedChanges: {},
+    reasoning: 'Test reasoning',
     ...overrides,
   };
 }

@@ -50,6 +50,103 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-09-14 — A tolerance window needs a moving anchor, or drift eventually breaks it regardless of tolerance width
+**Context:** Walking through Phase 1e's live verification with the user right
+after building it. They pointed out, from real experience with their own
+Tello line, that its billing date shifts by about a day every month
+(apparently payment-processing timing, not a clean calendar cycle).
+**What I thought:** A ±3-day tolerance on the billing-date match was already
+generous enough to absorb that kind of jitter — a 1-day-per-month drift is
+well inside a 3-day window.
+**What was actually true:** The tolerance width was never the problem — the
+fixed reference point was. `confirm` (the outcome that verifies a signal
+against the record) updated `source`/`last_verified_at` but never touched
+`anchor_date`, so every future match kept comparing against the *original*
+anchor, however many cycles ago that was. A 1-day-per-month drift is
+individually well inside ±3 days, but it is cumulative against a frozen
+reference: after 4 months it is 4 days off the original anchor, which is
+outside the tolerance — not because anything is actually wrong, but because
+the comparison point never moved. A tolerance window only stays meaningful
+if what it is centered on tracks the real, current state; centered on a
+value that is itself allowed to go stale, it is really just a slower way to
+fail the same way a zero-tolerance check would, delayed by however many
+cycles it takes to accumulate past the window. My first fix attempt
+(recomputing the comparison date live from today() at match time) missed
+this distinction entirely and made things worse for the common case: it
+recomputed the comparison date live from today() instead, which always
+projects "the next occurrence on/after today" — landing *after* a billing
+date that already happened by the time a sync catches up to the email, the
+normal case. That attempt was reverted; re-anchoring on confirm was the
+actual fix.
+**Why it matters:** Any time a system compares a live, moving quantity
+against a stored "expected" value with some tolerance, ask whether the
+stored value is itself kept current by the same events that get compared
+against it. If not, the tolerance is protecting against noise today but
+guarantees a failure eventually, once accumulated drift exceeds the window
+— and that failure will look like "a real mismatch" rather than what it
+actually is, drift from staleness. The fix is almost never "widen the
+tolerance" (which just delays the same failure); it's re-anchoring the
+comparison point to the most recent real observation every time one occurs.
+**Portfolio-worthy:** yes
+
+### 2026-09-14 — Cross-inbox dedup was only ever comparing one inbox against itself
+**Context:** Wiring Phase 1e's reconciliation into `syncAccount`, right after the
+existing dedup step. Re-reading that step closely before adding a call after it.
+**What I thought:** Phase 1d's "Cross-inbox deduplication" checklist item said
+"implemented, unit-tested" — the domain logic (`dedupeSignals`) genuinely is
+correct and well-tested, so the feature was assumed to actually run correctly.
+**What was actually true:** `syncAccount` fed `dedupeSignals` from
+`getPendingSignalsForAccount(accountId)` — scoped to the one account currently
+syncing. The same receipt landing in a *second*, different connected inbox would
+never be compared against the first inbox's already-created signal at all, since
+that query only ever sees one account's own pending rows. The pure function was
+correct; the query call site around it silently defeated the entire point of
+`contentHash` for the one scenario it exists for ("the same receipt forwarded to
+two inboxes has two message IDs and is one event" — schema.ts's own comment).
+Fixed by switching to a new account-agnostic `getAllPendingSignals()` query.
+**Why it matters:** "Implemented and unit-tested" describes the pure function, not
+the system. A domain function can be exhaustively correct and still be wired up
+wrong one layer up, and unit tests for the pure function will never catch that —
+only an integration test that actually spans two accounts would, and Phase 1d
+never had a second real inbox to write one against (its own checklist already
+flagged this as "genuinely still pending" for live verification, which is exactly
+the gap that let this hide). Worth checking call sites of "already tested" pure
+functions when building the next thing that depends on their stated behavior, not
+just trusting the checklist.
+**Portfolio-worthy:** yes
+
+### 2026-09-14 — Nested per-signal transactions in a loop exhausted the shared test-DB connection pool
+**Context:** `pnpm test:int` passed running each integration test file in
+isolation, then started timing out — including in an unrelated file
+(`watchlist-service.test.ts`) — the moment all 17 files ran together as part of
+`pnpm verify`.
+**What I thought:** A timeout inside newly-added reconciliation tests meant a real
+deadlock in the new code — most likely the new `client.transaction()` call nested
+inside `reconcileOneSignal`'s per-signal loop, itself called from inside
+`runReconciliation`, itself called from inside `syncAccount`'s own transaction in
+the detection-service tests.
+**What was actually true:** The nesting itself is fine — drizzle-orm creates a
+real SAVEPOINT on the same connection, the same pattern `subscription.service.ts`
+already used safely. Running the exact same test file in isolation (`vitest run
+tests/integration/reconciliation-service.test.ts`) passed instantly; running all
+17 integration files with `--no-file-parallelism` also passed, at roughly the same
+total wall-clock time as before. The actual cause: Vitest runs test files across
+several parallel worker processes by default, each with its own `postgres()`
+client and its own connection pool, all pointed at the same Supabase Postgres —
+and reconciliation now holds a connection open for materially longer per test (one
+extra nested transaction per signal, on top of every existing transaction), which
+was apparently enough to tip already-marginal parallel connection usage over the
+limit. Fixed by adding `--no-file-parallelism` to the `test:int` script —
+integration tests already share one real database and gain nothing from
+file-level parallelism the way unit tests do.
+**Why it matters:** A timeout that appears alongside new code is not proof the new
+code is the bug — an unrelated test file failing in the same run was the actual
+tell that this was resource contention, not a logic deadlock. Bisecting by running
+the suspect file alone first (fast, and it passed) before assuming the nested
+transaction itself was wrong saved a lot of wasted time chasing a deadlock that
+was never there.
+**Portfolio-worthy:** no
+
 ### 2026-09-14 — "new" vs "trial_conversion"/"price_change" needed one rule, not per-case patches
 **Context:** Three fixtures kept failing the same general shape of
 boundary: `hulu-trial-started` (a trial *starting*, with the future

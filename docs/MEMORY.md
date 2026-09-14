@@ -90,6 +90,61 @@ against the real API. Per
 ADR-010, Phase 1e (Reconciliation) is the one remaining full phase;
 Microsoft OAuth is likewise unscheduled. A mobile-first UI/UX redesign
 (ADR-009) landed across every existing screen earlier.
+
+**Phase 1e (Reconciliation) is implementation-complete and
+integration-tested against real Postgres, but not yet live-verified
+against real accounts.** `domain/reconcile.ts` implements
+`docs/DATA_MODEL.md`'s full match-weight table and Step 3 classification
+exactly, including the "ambiguous" 0.4–0.7 band and the
+"payment_failed"/"paused" exclusion — three real scoping gaps the doc
+itself left open, resolved and recorded as ADR-020. New
+`reconciliation_proposals` table (migration `0012`, additive) and a new
+`subscriptions.last_verified_at` column. `services/reconciliation.service.ts#runReconciliation`
+runs after dedup inside `syncAccount` (global across accounts, idempotent
+— skips any signal that already has a proposal), auto-applies `confirm`
+outcomes and writes an already-`accepted` proposal for the audit trail
+either way (CLAUDE.md's "no silent recommendations"), and writes a
+`pending` proposal for everything else. `acceptProposal`/`rejectProposal`
+back real Accept/Reject buttons on `/review` for
+price_update/date_update/cancellation; `discovery` deliberately has no
+direct-accept path — its "Add subscription" link pre-fills
+`/subscriptions/new` instead, so a detected signal (which carries no
+billing cycle at all) never gets to assert a full subscription record
+without the user reviewing it first (ADR-020). `/review`'s six Phase 1.5
+mock proposal cards are gone — the page now renders real
+`reconciliation_proposals`, still unified with the existing ADR-018
+needs-review signals in one Pending/Resolved list. Also fixed live in
+this same session, found while wiring reconciliation in, not a new
+feature: Phase 1d's cross-inbox dedup was silently scoped to one
+account's own pending signals only, never actually comparing across two
+different connected accounts — the literal scenario `contentHash` exists
+for (`docs/LEARNED.md`, 2026-09-14). `pnpm verify` green: 259 unit (34
+new — 27 for `reconcile.ts`, 6 for `levenshtein.ts`), 90 integration (10
+new, in `tests/integration/reconciliation-service.test.ts`).
+`pnpm test:int` also gained `--no-file-parallelism` — unrelated to
+reconciliation's own correctness, but needed once its extra per-signal
+nested transactions tipped the shared test-DB connection pool over its
+limit when all 17 integration files ran in parallel (`docs/LEARNED.md`,
+2026-09-14). **Partially live-verified against the real
+nirjhar121@gmail.com account (2026-09-14, same session, walked through
+with the user):** a real Tello discovery proposal accepted end to end
+into a real new subscription ("Tello Maa"); a real `payment_failed`
+(Xfinity) confirmed to correctly skip reconciliation while still
+getting its review brief; a real brand-new vendor (Gas South) correctly
+produced both a real discovery proposal and its own review brief. Along
+the way, live testing surfaced and fixed a real, user-reported gap: the
+±3-day date-match tolerance compared against a subscription's stored
+`next_billing_date`, which only `confirm` could refresh — and `confirm`
+didn't touch it — so a subscription whose real billing date drifts a
+day or two per cycle (the user's own example, a Tello line) would
+accumulate drift until a genuinely correct renewal eventually fell
+outside tolerance from staleness alone. Fixed by re-anchoring
+`anchor_date`/`next_billing_date` to the signal's real confirmed date on
+every `confirm`. **Still not done:** a real `confirm`/`price_update`
+against an already-existing subscription (no new matching email has
+arrived since Tello Maa/Baba were added — genuinely blocked on
+real-world timing, not code) and cross-inbox dedup (needs a second
+connected inbox).
 **Last updated:** 2026-09-14
 
 ### Done
@@ -782,15 +837,17 @@ only route timing and the account id, exactly matching
 
 ### Next
 
-Commit and push everything since the last commit (`9775a3b`) — the
-LangSmith removal and all of today's live-sync verification/doc updates
-are currently uncommitted local work. **Phase 1e (Reconciliation) is the
-one remaining phase** after that, per ADR-010's build order — the last
-of the two LLM-touching phases deferred to the end of the build.
-Cross-inbox dedup is the one Phase 1d checklist item still genuinely
-unverified live (needs a second connected inbox, which doesn't exist
-yet) — worth keeping in mind as Phase 1e's own testing will likely want
-a second account anyway.
+Live-verify Phase 1e against real accounts: connect a second Google
+inbox (needed for both the cross-inbox dedup fix and 1e's own exit
+criteria), run a real sync, and confirm a real `confirm`/`price_update`/
+`discovery` outcome each render correctly on `/review` and (for
+`price_update`/`cancellation`/an accepted discovery) actually mutate the
+right subscription. This is user-involved, not something to run solo —
+accepting a real proposal edits a real existing row, which needs the
+same 🛑 confirmation any other live edit to real data does. Once that's
+done, 1e's checklist and exit criteria in `PHASES.md` can move from
+"implementation-complete" to fully checked, and Phase 1 (the whole
+"Subscription tracker MVP") is complete except Microsoft OAuth.
 
 ### Blocked
 
@@ -862,6 +919,78 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-14 — Built Phase 1e (Reconciliation): domain/reconcile.ts, real proposals, /review wired to real data
+**Did:** Implemented `docs/DATA_MODEL.md`'s reconciliation algorithm end to
+end. `domain/reconcile.ts` (+ `domain/levenshtein.ts`, no new dependency) —
+Step 2 candidate matching and Step 3 outcome classification exactly per the
+doc's weight table/thresholds, 27 unit tests covering the full match matrix
+and every listed edge case. New `reconciliation_proposals` table (migration
+`0012`) and `subscriptions.last_verified_at` column, both additive, applied
+to the real Supabase Postgres. `services/reconciliation.service.ts` —
+`runReconciliation` (called from `syncAccount` after dedup, global across
+accounts, idempotent) auto-applies `confirm` and writes a pending proposal
+for everything else; `acceptProposal`/`rejectProposal`/`acceptDiscoveryProposal`
+back real Accept/Reject on `/review`. Replaced `/review`'s 6 mock proposal
+cards with real ones (`ReviewList.tsx`), and wired a discovery's "Add
+subscription" into a pre-filled `/subscriptions/new?proposalId=…` rather
+than a direct insert. Found and fixed a real pre-existing bug along the way
+(unrelated to new code, but directly relevant to 1e's own correctness):
+Phase 1d's cross-inbox dedup only ever compared one account's own pending
+signals against itself, never actually across two different inboxes — fixed
+by switching `syncAccount`'s dedup query to a new cross-account
+`getAllPendingSignals()`. Also hit and fixed a connection-pool-exhaustion
+test flake (`--no-file-parallelism` added to `test:int`) — see
+`docs/LEARNED.md` for both. `pnpm verify` green: 259 unit (34 new), 90
+integration (10 new).
+**Decided:** Three scoping calls the reconciliation doc left open, all
+recorded as ADR-020: ambiguous (0.4–0.7) matches surface as `discovery`
+proposals rather than a new proposal type; accepting a `discovery` routes to
+a pre-filled manual-entry form rather than inserting a subscription with a
+guessed billing cycle; `payment_failed`/`paused` signals are excluded from
+reconciliation entirely (they already have ADR-019's separate review-brief
+path).
+**Next (continued same session):** Walked through live verification with
+the user. Real, user-reported gap found and fixed: the ±3-day date-match
+tolerance compared against a subscription's stored `next_billing_date`,
+which only `confirm` could refresh — and the original `confirm` path
+didn't touch it at all. For a subscription whose real billing date
+drifts a day or two cycle to cycle (user's own example: a Tello line
+drifts about a day a month), that would accumulate until a genuinely
+correct renewal eventually fell outside tolerance from pure staleness,
+not a real mismatch. Fixed: `confirm` now re-anchors `anchor_date` (and
+recomputes `next_billing_date`) to the signal's actual confirmed date
+every time. A second attempted fix — recomputing the comparison date
+live from `computeNextBillingDate(asOf: today())` instead of trusting
+the stored column — was tried and reverted on reflection: that function
+only returns a date on or after "asOf," so it would project *past* a
+billing date that already happened by the time sync catches up (the
+normal case), breaking the common path to fix a rarer one. 2 new
+integration tests. Then live-verified against the real
+nirjhar121@gmail.com account: a real Tello discovery proposal accepted
+end to end into a real new subscription ("Tello Maa") via the
+pre-filled "Add subscription" flow; a real `payment_failed` (Xfinity)
+confirmed live to correctly skip reconciliation while still getting its
+ADR-019 review brief; a real brand-new vendor (Gas South) correctly
+produced both a real `discovery` proposal and its own separate review
+brief, rendering correctly together on `/review`. Also found, live,
+a sync-mechanics gap unrelated to reconciliation: Gmail's incremental
+sync only ever returns messages new since the last `historyId`, so
+month-old mail already in the inbox before this session started
+syncing would never surface — worked around with a 🛑-approved
+single-field edit (`sync_cursor` → null) to force the next sync through
+the existing 50-message "first sync" fallback, rather than a full
+disconnect/reconnect. **Not yet live-verified, genuinely blocked on
+real-world timing, not code:** a `confirm`/`price_update` against an
+already-existing subscription (no new matching email has arrived since
+the two Tello subscriptions were added — confirmed via direct Postgres
+query that both are still untouched) and cross-inbox dedup (needs a
+second connected inbox). `pnpm verify` green throughout: 259 unit
+(unchanged), 92 integration (2 more than the number above).
+**Next:** Wait for a real future Tello/other renewal (or connect a
+second inbox) to close out 1e's remaining exit criteria.
 
 ---
 

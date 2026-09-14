@@ -34,6 +34,12 @@ interface SubscriptionFormProps {
   /** Where Cancel goes — the list for a new subscription, the detail page
    * when editing an existing one. Defaults to the list. */
   cancelHref?: string;
+  /** Set when this form was opened from a `discovery` proposal's "Add
+   * subscription" link (docs/DECISIONS.md ADR-020) — passed through as a
+   * hidden field so `createSubscriptionAction` can link the proposal to
+   * whatever subscription the user actually saves, once they've reviewed
+   * and possibly edited the pre-filled values. */
+  proposalId?: string;
 }
 
 const initialState: SubscriptionFormState = { error: null };
@@ -52,6 +58,7 @@ export function SubscriptionForm({
   submitLabel,
   initialValues,
   cancelHref = '/subscriptions',
+  proposalId,
 }: SubscriptionFormProps) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [cycle, setCycle] = useState<(typeof cycleValues)[number]>(
@@ -64,6 +71,7 @@ export function SubscriptionForm({
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="cycle" value={cycle} />
+      {proposalId && <input type="hidden" name="proposalId" value={proposalId} />}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="f-name" className={labelClass}>

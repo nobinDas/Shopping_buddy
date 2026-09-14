@@ -13,7 +13,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "test": "vitest run tests/unit",
-    "test:int": "vitest run tests/integration",
+    "test:int": "vitest run tests/integration --no-file-parallelism",
     "test:golden": "vitest run tests/golden",
     "test:e2e": "playwright test",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:int"

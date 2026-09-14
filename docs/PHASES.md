@@ -249,17 +249,110 @@ against them — with one deliberate, narrow exception, see ADR-018.
 
 The crux of the phase. Algorithm and match rules are in `DATA_MODEL.md`.
 
-- [ ] Candidate matching between detected signals and manual records
-- [ ] Confirm: detection agrees with the manual record
-- [ ] Update proposal: detection disagrees, user resolves
-- [ ] Discovery: detected subscription with no manual record, surfaced for review
-- [ ] Review queue UI
-- [ ] `reasoning` record written for every proposal
+- [x] Candidate matching between detected signals and manual records —
+      `domain/reconcile.ts`, implemented exactly to `DATA_MODEL.md`'s
+      weight table and thresholds, 27 unit tests covering every branch of
+      the match matrix plus every enumerated edge case at the end of that
+      doc (same-vendor different tiers, simultaneous annual/monthly
+      plans, a currency change deliberately *not* auto-matched, a
+      third-party billing vendor string, trial-to-paid as a price change
+      from zero)
+- [x] Confirm: detection agrees with the manual record — applies
+      automatically (`source: 'manual_confirmed'`, new `last_verified_at`
+      column), integration-tested against real Postgres
+- [x] Update proposal: detection disagrees, user resolves — price_update
+      and date_update proposals, Accept/Reject wired to real
+      `reconciliation_proposals` rows on `/review`
+- [x] Discovery: detected subscription with no manual record, surfaced
+      for review — accepting one routes to a pre-filled "Add
+      subscription" form rather than inserting a subscription directly,
+      since no detected signal carries a billing cycle and manual entry
+      stays primary (docs/DECISIONS.md ADR-020)
+- [x] Review queue UI — `/review`'s six Phase 1.5 mock proposal cards are
+      gone; the page now renders real `reconciliation_proposals` (joined
+      with the matched subscription and originating signal for display)
+      alongside the existing ADR-018 needs-review signals in the same
+      unified Pending/Resolved list
+- [x] `reasoning` record written for every proposal — `NOT NULL` column,
+      populated by every code path including the auto-applied `confirm`
+      case (CLAUDE.md: "no silent recommendations")
+
+**Implementation-complete, integration-tested against real Postgres** (92
+integration tests green, including
+`tests/integration/reconciliation-service.test.ts`), **and partially
+live-verified against a real Gmail account (2026-09-14)**. Also fixed
+live in this same session, not a new feature: cross-inbox deduplication
+(the 1d checklist item) was silently only deduping within one account's
+own pending signals, never actually comparing across two different
+connected accounts — the literal "same receipt in two inboxes" scenario
+it exists for. See `docs/LEARNED.md`, 2026-09-14.
+
+**A real, user-reported gap found and fixed during live verification,
+not by review:** the ±3-day date-match tolerance compared every signal
+against a subscription's stored `next_billing_date`, which only a
+`confirm` outcome could ever refresh — and the original `confirm` path
+didn't touch it at all, only `source`/`last_verified_at`. For a
+subscription whose real billing date drifts by a day or two cycle to
+cycle (the user's own example: a Tello line's billing date shifts by
+about a day every month, apparently payment-processing timing), that
+drift would accumulate cycle over cycle against a frozen anchor until a
+genuinely correct renewal eventually fell outside the ±3-day window —
+not from a real mismatch, but from staleness. Fixed: every `confirm`
+outcome now re-anchors `anchor_date` (and recomputes `next_billing_date`
+from it) to the signal's actual detected billing date, so the
+comparison point always reflects the most recently confirmed real event.
+A second fix attempted first — recomputing the comparison date live from
+`computeNextBillingDate(asOf: today())` instead of trusting the stored
+column — was tried and reverted: that function only ever returns a date
+on or after "asOf", so it would project *past* a billing date that
+already happened by the time a sync catches up to the email (the normal
+case), breaking the common path to fix a rarer one. 2 new integration
+tests cover the re-anchor behavior (`tests/integration/reconciliation-service.test.ts`).
+
+**Live-verified against a real Gmail account:**
+- **Discovery → real subscription, full round trip**: a real Tello
+  renewal signal (extraction came back fully null, so no candidate could
+  score above 0) produced a real `discovery` proposal; accepting it via
+  the "Add subscription" link pre-filled `/subscriptions/new` with the
+  detected vendor name, and submitting it created a real subscription
+  (`Tello Maa`) and linked the proposal back to it, exactly as designed
+- **`payment_failed` correctly excluded from reconciliation while still
+  getting its ADR-019 review brief**: a real Xfinity payment-failure
+  email produced a `pending` signal with a real Sonnet-written brief
+  (`actionRequired: true`) and, confirmed directly in Postgres, **no**
+  `reconciliation_proposals` row — exactly ADR-020's decision #3, now
+  proven against a real email rather than only a unit test
+- **A brand-new vendor's `price_change` signal (Gas South) correctly
+  became a real `discovery` proposal** (no candidate scored above 0)
+  *and* independently got its own review brief (its own extraction also
+  came back null) — both mechanisms rendering correctly, side by side,
+  on the same `/review` page against real data
+- A real gap in the sync itself, unrelated to reconciliation, found
+  along the way: Gmail's history-based incremental sync only ever
+  returns messages new since the last `historyId` — a month-old email
+  already sitting in the inbox before this session's syncs began would
+  never surface through it. Worked around live by resetting the
+  account's `sync_cursor` to null (🛑-approved single-field edit, not a
+  disconnect/reconnect) so the next sync used the "first sync" 50-message
+  fallback instead — this is what actually found the Gas South and
+  Xfinity signals above. Not a reconciliation bug and not fixed as
+  application code; recorded here since it shaped how this session's
+  verification had to be done
+
+**Not yet live-verified — genuinely blocked on real-world timing, not on
+code:** a `confirm` or `price_update` outcome firing against a real,
+already-existing subscription (the two real Tello subscriptions added
+this session have had no new matching email arrive since they were
+created — `source`/`last_verified_at` on both are still untouched,
+confirmed directly in Postgres) and cross-inbox deduplication (needs a
+second connected inbox).
 
 **Exit criteria:** two inboxes connected; a manually entered subscription
 confirmed by a real email; a real price increase detected and surfaced; a
-subscription discovered that was never manually entered; no duplicates across
-inboxes; reconciliation logic at high unit-test coverage.
+subscription discovered that was never manually entered ✅ (live-verified,
+Tello → Tello Maa, 2026-09-14); no duplicates across inboxes;
+reconciliation logic at high unit-test coverage ✅ (34 unit tests across
+`reconcile.ts`/`levenshtein.ts`).
 
 **Idea captured for this phase, not yet scoped — shopping list price agent
 (2026-09-10):** Once the structured AI agent from 1d/1e exists, extend it to

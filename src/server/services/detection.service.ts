@@ -2,7 +2,7 @@ import { db, type DbClient } from '@/server/db';
 import { getEmailAccountById, updateEmailAccountRow } from '@/server/db/queries/email-accounts';
 import {
   insertDetectedSignal,
-  getPendingSignalsForAccount,
+  getAllPendingSignals,
   markSignalDuplicate,
 } from '@/server/db/queries/detection';
 import { getValidAccessToken } from '@/server/services/email-account.service';
@@ -18,6 +18,7 @@ import { looksLikelySubscription } from '@/server/domain/prefilter';
 import { computeContentHash } from '@/server/domain/content-hash';
 import { dedupeSignals } from '@/server/domain/dedupe-signals';
 import { normalizeVendorKey } from '@/server/domain/vendor-key';
+import { runReconciliation } from '@/server/services/reconciliation.service';
 
 export interface SyncResult {
   messagesScanned: number;
@@ -130,7 +131,14 @@ export async function syncAccount(accountId: string, client: DbClient = db): Pro
     }
   }
 
-  const pending = await getPendingSignalsForAccount(accountId, client);
+  // Cross-inbox dedup: must compare against every account's pending
+  // signals, not just this one's — the whole point of contentHash
+  // (docs/DATA_MODEL.md) is catching the same receipt landing in *two
+  // different* connected inboxes, which by definition means two
+  // different accountIds. Scoping this to `accountId` alone would only
+  // ever catch a duplicate within the same account, never the real
+  // cross-inbox case.
+  const pending = await getAllPendingSignals(client);
   const dedupeResult = dedupeSignals(
     pending.map((signal) => ({
       id: signal.id,
@@ -148,6 +156,13 @@ export async function syncAccount(accountId: string, client: DbClient = db): Pro
     { syncCursor: newHistoryId, lastSyncedAt: new Date() },
     client,
   );
+
+  // Phase 1e: docs/DATA_MODEL.md's reconciliation "runs after
+  // deduplication, on pending signals" — global across accounts, same
+  // as the dedup step above, and idempotent (see
+  // services/reconciliation.service.ts), so re-running it on every sync
+  // is safe.
+  await runReconciliation(client);
 
   return {
     messagesScanned: messageIds.length,

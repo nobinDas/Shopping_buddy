@@ -10,6 +10,7 @@ import {
   archiveSubscription,
   restoreSubscription,
 } from '@/server/services/subscription.service';
+import { acceptDiscoveryProposal } from '@/server/services/reconciliation.service';
 
 export interface SubscriptionFormState {
   error: string | null;
@@ -57,7 +58,21 @@ export async function createSubscriptionAction(
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
   }
 
-  await createSubscription(parsed.data);
+  const created = await createSubscription(parsed.data);
+
+  // Set only when this form was opened from a discovery proposal's "Add
+  // subscription" link (docs/DECISIONS.md ADR-020) — links the proposal
+  // to the subscription the user just chose to save, and marks its
+  // originating signal matched. The subscription itself is still created
+  // as an ordinary manual entry (`source: 'manual'`, unchanged above):
+  // the user reviewed and can freely have edited the pre-filled values,
+  // so this is their assertion, not the email's.
+  const proposalId = getFormString(formData, 'proposalId');
+  if (proposalId) {
+    await acceptDiscoveryProposal(proposalId, created.id);
+    revalidatePath('/review');
+  }
+
   revalidatePath('/subscriptions');
   revalidatePath('/');
   redirect('/subscriptions');

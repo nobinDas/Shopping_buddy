@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, ne } from 'drizzle-orm';
 import { db, type DbClient } from '@/server/db';
 import { subscriptions, priceHistory } from '@/server/db/schema';
 
@@ -30,6 +30,22 @@ export async function getActiveSubscriptions(client: DbClient = db): Promise<Sub
 /** Fetches every subscription regardless of status — the list view's source. */
 export async function getAllSubscriptions(client: DbClient = db): Promise<SubscriptionRow[]> {
   return client.select().from(subscriptions);
+}
+
+/**
+ * Every subscription reconciliation may match a signal against — every
+ * status except `archived`. `archived` is deliberately excluded: the user
+ * removed it on purpose, and re-surfacing it as a match candidate (e.g. a
+ * `renewal` signal auto-confirming a subscription they archived) would
+ * silently undo that. `paused`/`cancelled` stay eligible: a `renewal`
+ * signal against a `cancelled` subscription is exactly the kind of
+ * disagreement reconciliation exists to surface — see
+ * docs/DATA_MODEL.md's reconciliation section.
+ */
+export async function getSubscriptionsForMatching(
+  client: DbClient = db,
+): Promise<SubscriptionRow[]> {
+  return client.select().from(subscriptions).where(ne(subscriptions.status, 'archived'));
 }
 
 export async function getSubscriptionById(
