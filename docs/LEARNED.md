@@ -50,6 +50,39 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-09-14 — "new" vs "trial_conversion"/"price_change" needed one rule, not per-case patches
+**Context:** Three fixtures kept failing the same general shape of
+boundary: `hulu-trial-started` (a trial *starting*, with the future
+conversion charge previewed) got classified `trial_conversion` instead
+of `new`; `netflix-extra-member-addon` (a new incremental charge added
+to an existing plan) got classified `price_change` instead of `new`; and
+`spotify-gift-subscription` (a gift period starting, with a future
+downgrade-if-unpaid previewed) had intermittently failed the same way
+across earlier sessions.
+**What I thought:** These looked like three separate, unrelated
+ambiguities — each fixture's specific wording seemed like its own
+one-off edge case, and my first instinct was to consider a targeted
+counter-example for each.
+**What was actually true:** All three share one underlying confusion:
+the model was classifying based on *what future event the email
+mentions* rather than *what event the email is actually announcing
+right now*. A trial-start email that previews its own future conversion
+date reads, superficially, like a conversion notice; a member-addon
+email that mentions a new charge reads, superficially, like a price
+notice. One rule fixed all three at once: distinguish by which event is
+being announced, not by whether a later event is referenced anywhere in
+the text. Verified 3 full runs (41/41 fixtures, 3 for 3) against the
+real API to rule out this being another instance of the documented
+run-to-run non-determinism on this exact boundary rather than an actual
+fix.
+**Why it matters:** When several fixtures fail in *the same shape* even
+though their content looks unrelated on the surface, that's a signal to
+look for one general principle before writing N specific counter-
+examples — the same lesson as the earlier vendor-name/date-substitution
+investigations, but this time caught before spending five rounds of
+narrow patches to get there.
+**Portfolio-worthy:** yes
+
 ### 2026-09-14 — Forced into the wrong category, a model hallucinates a plausible answer instead of leaving it null
 **Context:** Two edge-case fixtures (`audible-payment-failed`,
 `equinox-membership-pause`) described events that don't fit any of the

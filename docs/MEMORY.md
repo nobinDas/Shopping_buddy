@@ -47,14 +47,15 @@ deterministically in code (not computed by the model —
 `domain/parse-amount-span.ts`, `domain/parse-date-span.ts`), and a "Sync
 now" trigger on `/accounts`. `pnpm verify` green (232 unit, 80
 integration) and `pnpm test:golden` run against the live Claude API —
-**39/41 fixtures passing** (41 = the original 25 + 16 adversarial
-edge-case fixtures added 2026-09-14 via a fresh, uninvolved agent
-specifically to avoid self-testing bias; that run found and led to
-fixing 3 real bugs — a Sonnet token-budget issue, a French/Arabic
-date-parsing gap, and a category-forcing hallucination bug fixed by
-adding `payment_failed`/`paused` signal types, ADR-019). The 2 remaining
-failures are one known, still-open `new`/`trial_conversion` boundary
-weakness (2 fixtures). A real end-to-end
+**41/41 fixtures passing, stable across 3 full repeated runs** (41 = the
+original 25 + 16 adversarial edge-case fixtures added 2026-09-14 via a
+fresh, uninvolved agent specifically to avoid self-testing bias; that
+run found and led to fixing 4 real bugs — a Sonnet token-budget issue, a
+French/Arabic date-parsing gap, a category-forcing hallucination bug
+fixed by adding `payment_failed`/`paused` signal types (ADR-019), and a
+`new`/`trial_conversion`/`price_change` boundary weakness fixed by one
+prompt clarification covering all 3 affected fixtures at once). A real
+end-to-end
 sync against a real Gmail account succeeded: 50 messages scanned, only 3
 passed the pre-filter and became real `detected_signals` rows (real
 vendors — Xfinity, Gas South, Tello — with amount/date correctly left
@@ -861,6 +862,33 @@ Newest first. One entry per working session. Four lines each:
 Say what was *actually done*, not what was discussed. A session that explored
 options and settled nothing should say so — that is useful information for the
 next session, and pretending otherwise wastes its time.
+
+---
+
+### 2026-09-14 — Fixed the new/trial_conversion/price_change boundary weakness — one prompt rule for three fixtures
+**Did:** Investigated the last 2 open golden-fixture failures
+(`hulu-trial-started`, `netflix-extra-member-addon`) together with the
+older, intermittently-failing `spotify-gift-subscription`, rather than
+patching each independently. All three shared one root cause: the model
+was classifying by which *future* event an email mentions, not by which
+event it's actually *announcing*. Added a single prompt clarification to
+`classify-email.ts` distinguishing "new" (a trial/gift/charge
+*starting*, even if a future conversion is previewed in the same email)
+from "trial_conversion" (the trial actually ending/converting *now*)
+and from "price_change" (an *existing* charge's own amount changing, not
+a new charge added alongside one). No code changes — pure prompt
+wording, verified against two existing regression-guard fixtures
+(`duolingo-relative-date-only` for a genuine trial_conversion,
+`adobe-downgrade-cheaper-tier`/`classpass-price-decrease-notice` for
+genuine price_change) that needed to keep passing. Ran the full golden
+suite 3 times against the real API to rule out this being another
+instance of the already-documented non-determinism on this exact
+boundary rather than a real fix: **41/41, 3 for 3.**
+**Decided:** No new ADR — this is prompt wording, same category as the
+earlier verbatim-transcription/counter-example fixes (ZEE5, JPY,
+date-substitution), which got `LEARNED.md` entries, not ADRs.
+**Next:** All golden fixtures pass. Phase 1e (Reconciliation) is the
+next full phase; nothing else outstanding from this session.
 
 ---
 

@@ -43,6 +43,23 @@ null; nothing was charged. For both, leave billingDateText null even if
 the email states a retry date or a resume date — neither a failed
 attempt nor a pause has a confirmed charge date.
 
+Distinguish "new" from "trial_conversion" by which event the email is
+actually announcing, not by whether a future charge is mentioned: a
+trial or gift period **starting** is "new", even when the same email
+also previews the date and amount it will convert to if not cancelled —
+that's a very common pattern in trial-start emails, and previewing a
+future event is not the same as announcing it happening now. Only use
+"trial_conversion" when the email is announcing the trial itself ending
+or having just converted to paid.
+
+Distinguish "new" from "price_change" the same way: "price_change" is
+for an **existing** recurring charge's own amount changing (the email
+states an old amount and a new amount for the same line item, e.g. "$X
+instead of $Y"). A **new** recurring charge starting alongside an
+existing one — adding a member to a shared plan, adding an add-on — is
+"new", a new billable line item starting, even though it's billed
+together with, and mentioned in the same email as, an existing plan.
+
 Extract vendorName as the actual subscribed *service* (e.g. "HBO Max",
 "Netflix"), not the sending domain if they differ (e.g. "Netflix" not
 "netflix-noreply"), and not the payment platform or processor the receipt
