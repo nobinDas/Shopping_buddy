@@ -1,7 +1,15 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/auth'];
+// '/api/cron' is not "public" in the sense of unauthenticated — the
+// route itself requires a valid CRON_SECRET bearer token (see
+// api/cron/sync/route.ts) — it's exempted here because a scheduled
+// Vercel Cron invocation is a server-to-server request with no
+// Supabase session cookie at all. Without this, every cron request
+// hits the `!user` branch below and gets redirected to /login before
+// the route handler's own auth check ever runs — found live while
+// wiring up the Phase 1e cron schedule (docs/LEARNED.md, 2026-09-14).
+const PUBLIC_PATHS = ['/login', '/auth', '/api/cron'];
 
 export async function middleware(request: NextRequest) {
   // Checked inside the function, not at module scope — narrowing an outer

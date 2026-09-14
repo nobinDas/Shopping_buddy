@@ -50,6 +50,37 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-09-14 — Wiring up the actual cron schedule surfaced a real auth gap the manual "Sync now" button never could
+**Context:** Turning on `/api/cron/sync`'s real Vercel Cron schedule
+(`vercel.json`), after it had sat unscheduled since Phase 1d — protected by
+`CRON_SECRET`, tested only ever via the logged-in "Sync now" button.
+**What I thought:** The route was already correctly gated — it checks
+`CRON_SECRET` itself, so wiring up `vercel.json` plus setting the env var in
+Vercel's dashboard should be the whole job.
+**What was actually true:** `src/middleware.ts` runs before any route
+handler and redirects every unauthenticated request to `/login` unless the
+path is in a short public-paths allowlist (`/login`, `/auth`). A scheduled
+Vercel Cron invocation is a server-to-server request with no Supabase
+session cookie — so it hit the same `!user` branch a logged-out browser
+would, and got redirected to `/login` before the route's own `CRON_SECRET`
+check ever ran. Confirmed live with `curl`: an unauthenticated request to
+`/api/cron/sync` came back `307 → /login`, not the route's `401
+Unauthorized` — the real auth the route implements was unreachable. The
+manual "Sync now" button never exposed this because it's only ever clicked
+from inside an already-logged-in browser session, where `user` is always
+present regardless of the route's own path-level rules. Fixed by adding
+`/api/cron` to the middleware's public-paths list — not actually
+"unauthenticated," just exempted from the *session* check, since the route
+enforces its own bearer-token auth.
+**Why it matters:** A route's own auth check being correct doesn't mean the
+route is reachable — a broader gate sitting in front of it (middleware,
+a proxy, a load balancer rule) can silently intercept exactly the caller
+that check exists for, and the only way this surfaces is testing the actual
+caller shape (an unauthenticated `curl`, not a browser with a session)
+rather than trusting that "the button already works" implies the underlying
+route does too.
+**Portfolio-worthy:** yes
+
 ### 2026-09-14 — A tolerance window needs a moving anchor, or drift eventually breaks it regardless of tolerance width
 **Context:** Walking through Phase 1e's live verification with the user right
 after building it. They pointed out, from real experience with their own

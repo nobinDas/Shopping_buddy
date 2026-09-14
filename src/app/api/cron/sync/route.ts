@@ -3,12 +3,14 @@ import { getAllEmailAccounts } from '@/server/db/queries/email-accounts';
 import { syncAccount } from '@/server/services/detection.service';
 
 /**
- * docs/TOOLS.md: "Daily sync | Vercel Cron → route handler." Not wired
- * to an actual schedule yet (Phase 1d) — that's a vercel.json/dashboard
- * config change, left for the user to enable once satisfied with
- * classification accuracy. Protected by CRON_SECRET regardless, since
+ * docs/TOOLS.md: "Daily sync | Vercel Cron → route handler." Wired to a
+ * real schedule (Phase 1e, `vercel.json` — daily, 13:00 UTC) once
+ * classification accuracy was verified against the golden-file set and
+ * a real inbox (Phase 1d). Protected by CRON_SECRET regardless, since
  * this route is otherwise a public URL that would trigger real Gmail
- * reads + Gemini calls across every connected account.
+ * reads + Claude calls across every connected account — Vercel's own
+ * scheduled invocation sends `Authorization: Bearer <CRON_SECRET>`
+ * automatically, using the same env var set in Production.
  */
 export async function GET(request: NextRequest) {
   const secret = process.env['CRON_SECRET'];

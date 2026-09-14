@@ -887,10 +887,8 @@ its rationale and deleting it here.
   diverge for annual renewals near month boundaries.
 - Sync frequency: daily is the assumption. Is it enough to catch a trial
   conversion before it bills?
-- **Vercel Cron schedule for `/api/cron/sync`** (Phase 1d): the route
-  handler exists and is `CRON_SECRET`-protected, but no actual schedule is
-  configured (`vercel.json`/dashboard). Turn it on once satisfied with
-  classification accuracy against the golden-file set.
+- ~~Vercel Cron schedule for `/api/cron/sync`~~ — resolved 2026-09-14, see
+  the session log below (daily, 13:00 UTC, `vercel.json`).
 - **Anthropic Evaluation tier's real rate limits** (Phase 1d, ADR-016):
   the org is on the default starting tier — golden-file testing (5 calls)
   worked cleanly, but the actual per-minute request/token limits haven't
@@ -1011,12 +1009,25 @@ existing subscription** — still needs a real future billing event; no
 new matching email has arrived since Tello Maa/Baba were added. Both
 accepted as genuinely open, not pursued further — real-world blockers,
 not code gaps.
-**Next:** Nothing actionable right now. Revisit when either a real
-future renewal email arrives (closes confirm/price_update) or the two
-connected inboxes happen to share a subscription (closes cross-inbox
-dedup) — likely worth turning on the `/api/cron/sync` schedule (still
-unconfigured, open question since Phase 1d) so this happens
-automatically rather than needing another manual walkthrough.
+**Next (same-day follow-up):** Turned on the `/api/cron/sync` schedule —
+new `vercel.json` (daily, `0 13 * * *`), a real `CRON_SECRET` generated
+and added to `.env.local` (also needs adding to Vercel's Production env
+vars — not done from here, no Vercel CLI/MCP auth set up this session).
+Testing it live via `curl` surfaced a real, separate bug before it ever
+reached Vercel: `src/middleware.ts`'s session-based auth gate redirected
+*any* unauthenticated request — including a cron call with no browser
+session — to `/login`, before the route's own `CRON_SECRET` check ever
+ran. The manual "Sync now" button never exposed this since it's always
+clicked from an already-logged-in session. Fixed by adding `/api/cron`
+to the middleware's public-paths list (the route still enforces its own
+bearer-token auth — this only exempts it from the *session* check).
+Verified live: wrong secret → real `401`, correct secret → real `200`
+with both connected accounts synced. `pnpm verify` green throughout
+(259 unit, 92 integration, unchanged counts). Not committed/pushed yet.
+**Next:** Commit and push. Then genuinely nothing actionable on 1e until
+either a real future renewal email arrives or the two connected inboxes
+happen to share a subscription — both should now surface automatically
+via the daily cron instead of needing another manual walkthrough.
 
 ---
 
