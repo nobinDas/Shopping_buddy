@@ -339,20 +339,42 @@ tests cover the re-anchor behavior (`tests/integration/reconciliation-service.te
   application code; recorded here since it shaped how this session's
   verification had to be done
 
-**Not yet live-verified — genuinely blocked on real-world timing, not on
-code:** a `confirm` or `price_update` outcome firing against a real,
-already-existing subscription (the two real Tello subscriptions added
-this session have had no new matching email arrive since they were
-created — `source`/`last_verified_at` on both are still untouched,
-confirmed directly in Postgres) and cross-inbox deduplication (needs a
-second connected inbox).
+**A second real Google account connected (2026-09-14)** —
+`nirjhar212@gmail.com`, added as an OAuth test user (the Google Cloud
+client is still in Testing publishing mode, capped at 100 lifetime test
+users — nowhere close for two personal accounts) after first hitting
+Google's "app has not completed verification" block, expected for an
+unlisted OAuth client. Its first sync (68s, the bounded 50-message
+first-sync fallback) found a real new signal (`anthropic`, `renewal`)
+and correctly produced its own real `discovery` proposal, independent of
+the first account's signals.
 
-**Exit criteria:** two inboxes connected; a manually entered subscription
-confirmed by a real email; a real price increase detected and surfaced; a
-subscription discovered that was never manually entered ✅ (live-verified,
-Tello → Tello Maa, 2026-09-14); no duplicates across inboxes;
-reconciliation logic at high unit-test coverage ✅ (34 unit tests across
-`reconcile.ts`/`levenshtein.ts`).
+**Two exit criteria confirmed genuinely open, not fixable from here —
+checked directly with the user rather than assumed:**
+- **No duplicates across inboxes** — cannot be live-proven right now:
+  the two connected accounts are the user's real personal inboxes and
+  share no actual subscription, so no genuine cross-inbox duplicate
+  email exists to collapse. Forwarding a receipt between them to
+  manufacture one was considered and explicitly declined by the user —
+  the fix (comparing pending signals across every account, not just the
+  syncing one — see `docs/LEARNED.md`, 2026-09-14) stays verified at the
+  code/`dedupeSignals`-unit-test level only, not by a live duplicate.
+  Revisit if the two inboxes ever naturally share a subscription.
+- **A `confirm`/`price_update` against a real, already-existing
+  subscription** — the two real Tello subscriptions added this session
+  have had no new matching email arrive since they were created
+  (`source`/`last_verified_at` on both still null, confirmed directly in
+  Postgres). Genuinely blocked on a real future billing event, not code.
+
+**Exit criteria:** two inboxes connected ✅ (nirjhar121@gmail.com +
+nirjhar212@gmail.com, 2026-09-14); a manually entered subscription
+confirmed by a real email — open, blocked on a future real renewal; a
+real price increase detected and surfaced — same; a subscription
+discovered that was never manually entered ✅ (live-verified, Tello →
+Tello Maa, 2026-09-14); no duplicates across inboxes — open, no real
+duplicate currently exists between the two connected inboxes to prove it
+against; reconciliation logic at high unit-test coverage ✅ (34 unit
+tests across `reconcile.ts`/`levenshtein.ts`).
 
 **Idea captured for this phase, not yet scoped — shopping list price agent
 (2026-09-10):** Once the structured AI agent from 1d/1e exists, extend it to

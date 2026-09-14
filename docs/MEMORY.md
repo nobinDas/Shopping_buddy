@@ -140,11 +140,21 @@ day or two per cycle (the user's own example, a Tello line) would
 accumulate drift until a genuinely correct renewal eventually fell
 outside tolerance from staleness alone. Fixed by re-anchoring
 `anchor_date`/`next_billing_date` to the signal's real confirmed date on
-every `confirm`. **Still not done:** a real `confirm`/`price_update`
-against an already-existing subscription (no new matching email has
-arrived since Tello Maa/Baba were added — genuinely blocked on
-real-world timing, not code) and cross-inbox dedup (needs a second
-connected inbox).
+every `confirm`. A second real Google account
+(`nirjhar212@gmail.com`) was then connected as an OAuth test user (hit
+and worked past Google's expected "unverified app" block first) — its
+first sync found a real new `anthropic` signal and produced its own real
+discovery proposal correctly. **Two exit criteria confirmed genuinely
+open, checked directly with the user rather than assumed:** cross-inbox
+dedup can't be live-proven because the two real connected inboxes share
+no actual subscription (the user explicitly declined forwarding a
+receipt between them to manufacture a duplicate for the test — fair,
+that's not what actually happens in real use); and a `confirm`/
+`price_update` against an already-existing subscription needs a real
+future billing event (no new matching email has arrived since Tello
+Maa/Baba were added — `source`/`last_verified_at` on both still null,
+confirmed via Postgres). Both are now accepted as open until real data
+naturally provides them, not further pursued this session.
 **Last updated:** 2026-09-14
 
 ### Done
@@ -982,15 +992,31 @@ month-old mail already in the inbox before this session started
 syncing would never surface — worked around with a 🛑-approved
 single-field edit (`sync_cursor` → null) to force the next sync through
 the existing 50-message "first sync" fallback, rather than a full
-disconnect/reconnect. **Not yet live-verified, genuinely blocked on
-real-world timing, not code:** a `confirm`/`price_update` against an
-already-existing subscription (no new matching email has arrived since
-the two Tello subscriptions were added — confirmed via direct Postgres
-query that both are still untouched) and cross-inbox dedup (needs a
-second connected inbox). `pnpm verify` green throughout: 259 unit
-(unchanged), 92 integration (2 more than the number above).
-**Next:** Wait for a real future Tello/other renewal (or connect a
-second inbox) to close out 1e's remaining exit criteria.
+disconnect/reconnect. `pnpm verify` green throughout: 259 unit
+(unchanged), 92 integration (2 more than the number above). Committed
+(`4d5b64f`) and pushed.
+
+**Same-day follow-up — closing out 1e's remaining exit criteria:**
+Connected a second real Google account (`nirjhar212@gmail.com`) as an
+OAuth test user (Google's "unverified app" block hit and worked past
+first — expected, the OAuth client is still in Testing mode). Its first
+sync (68s) found a real `anthropic` renewal signal and correctly
+produced its own discovery proposal. Asked the user directly about the
+two remaining exit criteria rather than assuming either was closeable:
+**cross-inbox dedup** — the two real inboxes share no actual
+subscription, so there's no genuine duplicate to prove it against; the
+user explicitly declined forwarding a receipt between them to
+manufacture one for the test. **A `confirm`/`price_update` against an
+existing subscription** — still needs a real future billing event; no
+new matching email has arrived since Tello Maa/Baba were added. Both
+accepted as genuinely open, not pursued further — real-world blockers,
+not code gaps.
+**Next:** Nothing actionable right now. Revisit when either a real
+future renewal email arrives (closes confirm/price_update) or the two
+connected inboxes happen to share a subscription (closes cross-inbox
+dedup) — likely worth turning on the `/api/cron/sync` schedule (still
+unconfigured, open question since Phase 1d) so this happens
+automatically rather than needing another manual walkthrough.
 
 ---
 
