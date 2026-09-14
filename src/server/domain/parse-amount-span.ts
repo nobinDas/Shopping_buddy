@@ -17,16 +17,24 @@
  * across this app's golden-file fixtures: plain decimal ("9.99"),
  * US-style thousands-plus-decimal ("1,200.00"), a bare integer with no
  * decimal shown ("499"), a zero-decimal currency's own thousands
- * separator ("1,490"), and European comma-as-decimal ("8,99"). Returns
- * null for anything it can't confidently parse (docs/TOOLS.md:
- * "discard-and-log on failure rather than persisting a malformed
- * signal") — never guesses.
+ * separator ("1,490"), European comma-as-decimal ("8,99"), and a
+ * three-decimal currency ("12.345 KWD"). Returns null for anything it
+ * can't confidently parse (docs/TOOLS.md: "discard-and-log on failure
+ * rather than persisting a malformed signal") — never guesses.
  */
 
 // Currencies with no minor-unit subdivision at all — every separator in
 // these is a thousands grouping, never a decimal point. Mirrors the same
 // set named in the system prompt (classify-email.ts).
 const ZERO_DECIMAL_CURRENCIES = new Set(['JPY', 'KRW', 'VND']);
+// ISO 4217 currencies whose minor unit is a *third* decimal place, not the
+// usual two — every Gulf/Maghreb dinar-family currency still in active use
+// (BHD, IQD, JOD, KWD, LYD, OMR, TND). Previously unhandled: anything not
+// in ZERO_DECIMAL_CURRENCIES fell through to the 2-decimal default, which
+// silently misparses these by a factor of 10 (e.g. "12.345 KWD" read as
+// 1234 minor units instead of 12345). Flagged as a known gap when this
+// file was first written; no golden fixture exercised it until now.
+const THREE_DECIMAL_CURRENCIES = new Set(['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND']);
 const DEFAULT_DECIMAL_PLACES = 2;
 
 function extractNumericToken(text: string): string | null {
@@ -35,7 +43,10 @@ function extractNumericToken(text: string): string | null {
 }
 
 function decimalPlacesFor(currency: string): number {
-  return ZERO_DECIMAL_CURRENCIES.has(currency.toUpperCase()) ? 0 : DEFAULT_DECIMAL_PLACES;
+  const upper = currency.toUpperCase();
+  if (ZERO_DECIMAL_CURRENCIES.has(upper)) return 0;
+  if (THREE_DECIMAL_CURRENCIES.has(upper)) return 3;
+  return DEFAULT_DECIMAL_PLACES;
 }
 
 /**

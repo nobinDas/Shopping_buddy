@@ -48,4 +48,21 @@ describe('parseAmountSpan', () => {
   it('handles a bare negative amount with no currency symbol between the sign and the digits', () => {
     expect(parseAmountSpan('-12.99', 'USD')).toBe(-1299);
   });
+
+  it('parses a three-decimal currency amount (KWD, BHD, JOD, OMR, etc.)', () => {
+    expect(parseAmountSpan('12.345 KWD', 'KWD')).toBe(12345);
+    expect(parseAmountSpan('OMR 0.500', 'OMR')).toBe(500);
+  });
+
+  it('parses a bare integer three-decimal currency amount, applying the implied .000', () => {
+    expect(parseAmountSpan('KWD 5', 'KWD')).toBe(5000);
+  });
+
+  it('parses a three-decimal currency amount with a thousands separator', () => {
+    expect(parseAmountSpan('1,234.567 KWD', 'KWD')).toBe(1234567);
+  });
+
+  it('is case-insensitive on a three-decimal currency code', () => {
+    expect(parseAmountSpan('12.345 KWD', 'kwd')).toBe(12345);
+  });
 });

@@ -858,6 +858,26 @@ next session, and pretending otherwise wastes its time.
 
 ---
 
+### 2026-09-14 — Fixed the known 3-decimal-currency gap in parse-amount-span.ts
+**Did:** `decimalPlacesFor()` only distinguished zero-decimal currencies
+(JPY/KRW/VND) from a hardcoded 2-decimal default — a currency with a
+*three*-decimal minor unit (BHD, IQD, JOD, KWD, LYD, OMR, TND — the
+dinar/rial family still in active use) would have silently misparsed by
+a factor of 10. This was a known, flagged-but-unfixed gap from earlier
+work, not something a fixture caught failing (no golden fixture
+exercised a 3-decimal currency). Added a `THREE_DECIMAL_CURRENCIES` set
+and extended `decimalPlacesFor` to check it — the rest of the
+split/compute logic (`splitIntegerAndFraction`, the final minor-units
+calculation) was already fully generic over `decimalPlaces` and needed
+no changes. 4 new unit tests (bare integer, thousands-separated, plain
+decimal, case-insensitivity). `pnpm verify` green (223 unit, 80
+integration).
+**Decided:** Nothing new — a straightforward fix of an already-documented
+gap, no scoping decision involved.
+**Next:** Phase 1e (Reconciliation) remains the next full phase.
+
+---
+
 ### 2026-09-14 — Needs-review brief + Gmail deep-link built and live-verified (ADR-018)
 **Did:** The prior session's live sync left 3 real `detected_signals` rows
 (Xfinity, Gas South, Tello) with amount/currency/billingDate all null even
