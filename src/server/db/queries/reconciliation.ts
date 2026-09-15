@@ -1,4 +1,4 @@
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { db, type DbClient } from '@/server/db';
 import { reconciliationProposals, detectedSignals, subscriptions } from '@/server/db/schema';
 
@@ -82,6 +82,18 @@ export async function getPendingProposals(client: DbClient = db): Promise<Propos
   return selectProposalView(client)
     .where(eq(reconciliationProposals.status, 'pending'))
     .orderBy(desc(reconciliationProposals.createdAt));
+}
+
+/**
+ * Count-only version of `getPendingProposals` — the bottom nav's Review
+ * badge (`components/dashboard/BottomNav.tsx`) needs just the number.
+ */
+export async function getPendingProposalsCount(client: DbClient = db): Promise<number> {
+  const [row] = await client
+    .select({ count: sql<number>`count(*)::int` })
+    .from(reconciliationProposals)
+    .where(eq(reconciliationProposals.status, 'pending'));
+  return row?.count ?? 0;
 }
 
 /**

@@ -114,3 +114,16 @@ export async function archiveSignal(id: string, client: DbClient = db): Promise<
     .set({ status: 'dismissed', resolvedAt: new Date() })
     .where(eq(detectedSignals.id, id));
 }
+
+/**
+ * Count-only version of `getNeedsReviewSignals('pending')` — the bottom
+ * nav's Review badge (`components/dashboard/BottomNav.tsx`) needs just
+ * the number, not the rows themselves.
+ */
+export async function getNeedsReviewPendingCount(client: DbClient = db): Promise<number> {
+  const [row] = await client
+    .select({ count: sql<number>`count(*)::int` })
+    .from(detectedSignals)
+    .where(and(eq(detectedSignals.status, 'pending'), isNotNull(detectedSignals.reviewBrief)));
+  return row?.count ?? 0;
+}

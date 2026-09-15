@@ -26,12 +26,13 @@ const TABS: NavTab[] = [
   },
 ];
 
-// Mirrors review/page.tsx's own mock `initialProposals` pending count (4).
-// No shared state yet — Phase 1e's real reconciliation_proposals table is
-// what eventually makes this a live count instead of a fixture echo.
-const PENDING_REVIEW_COUNT = 4;
-
-export function BottomNav({ hasWatchlistDrop = false }: { hasWatchlistDrop?: boolean }) {
+export function BottomNav({
+  hasWatchlistDrop = false,
+  pendingReviewCount = 0,
+}: {
+  hasWatchlistDrop?: boolean;
+  pendingReviewCount?: number;
+}) {
   const pathname = usePathname();
 
   return (
@@ -49,8 +50,8 @@ export function BottomNav({ hasWatchlistDrop = false }: { hasWatchlistDrop?: boo
             {active && <span className="absolute inset-x-0 top-[-1px] h-[2px] bg-ink" />}
             <span className="flex items-center gap-1">
               {tab.label}
-              {tab.href === '/review' && (
-                <span className="font-mono text-[10px] text-pending">{PENDING_REVIEW_COUNT}</span>
+              {tab.href === '/review' && pendingReviewCount > 0 && (
+                <span className="font-mono text-[10px] text-pending">{pendingReviewCount}</span>
               )}
               {tab.href === '/more' && hasWatchlistDrop && (
                 <span
