@@ -27,6 +27,86 @@ not actually examined.
 
 ---
 
+## ADR-024 — LLM/network safety audit: no unbounded loops found; every external `fetch` given an explicit timeout
+**Date:** 2026-09-16
+**Status:** accepted
+**Context:** Deferred backlog item (`docs/PHASES.md`, recorded 2026-09-15 per
+explicit user request) to audit, once watchlist feature work was done, four
+things: whether any LLM call site could loop unboundedly, whether every
+external network call has a real timeout cap, this app's prompt-injection
+threat model, and whether adopting LangChain (or similar) is worth it. The
+watchlist work (search-accuracy fix, ADR-022's engine migration, ADR-023's
+monthly cron) was complete, so this ran now.
+**Decision:** Findings, one per question:
+1. **No unbounded loops.** All 5 LLM call sites live in one file
+   (`providers/anthropic.ts`); none contain a `while` loop or a
+   self-invoking retry. `classifyEmail`'s Haiku→Sonnet escalation is a
+   single `if`-gated step, hard-capped at 2 calls total. The Anthropic
+   SDK's own `maxRetries: 3` only retries transient network errors with
+   bounded backoff — not app logic, and not unbounded. A repo-wide search
+   for `while (` in `src/server` returned zero real hits, ruling out a
+   hidden pagination loop anywhere else (e.g. Gmail's `listHistory` takes
+   exactly one page per sync, capped by `FIRST_SYNC_LIMIT`).
+2. **Timeouts were inconsistent — now fixed.** Every LLM call already had
+   an explicit 30s timeout (`providers/anthropic.ts#PER_CALL_TIMEOUT_MS`).
+   None of this app's 8 non-LLM `fetch()` calls did — Gmail
+   (`gmail.ts`), Google Places/Routes (`google-maps.ts`), SerpApi
+   (`google-shopping.ts`), Google OAuth token/revoke/userinfo (`google.ts`).
+   A new `providers/http.ts#EXTERNAL_FETCH_TIMEOUT_MS` (30s, matching the
+   LLM convention) is now passed as `signal: AbortSignal.timeout(...)` to
+   every one of those 8 call sites.
+3. **Prompt-injection threat model, confirmed and documented.** No LLM
+   call in this app is part of an agentic tool-use loop — nothing fetches
+   a URL and feeds the result back into its own reasoning mid-task, which
+   is the shape of injection risk that actually matters (an agent
+   encountering a malicious page while browsing on the model's own
+   initiative). The one real adversarial-input surface, pre-existing and
+   unrelated to watchlist: email body/subject/from is third-party-written
+   and flows into `classifyEmail`/`writeReviewBrief` directly. Contained
+   by structural properties already in place, not new mitigations: native
+   structured output constrains `classifyEmail`'s response to a fixed
+   schema; `enforceNoConfirmedChargeInvariant` deterministically overrides
+   the model on specific fields regardless of what it returns; manual
+   entry is authoritative (CLAUDE.md) so a signal can never assert new
+   subscription data on its own, only corroborate or propose; and
+   inboxes being hard-coded read-only (CLAUDE.md) means no injected
+   instruction could trigger a real email action even in principle.
+   `writeReviewBrief`'s free-text summary is the softest point — a
+   crafted email could steer its wording — but that text is only ever
+   displayed to the user on a review card, never acted on automatically.
+4. **LangChain: not adopted.** It targets exactly the agentic-loop risk
+   this app structurally doesn't have. The existing direct-SDK approach
+   (`@anthropic-ai/sdk` + Zod schemas + `output_config.format`) already
+   gives stronger compile-time and runtime output guarantees than a
+   framework's generic parsing layer would add.
+**Consequences:** `AbortSignal.timeout` aborts the `fetch` call itself
+(surfacing as a thrown error at the call site) once 30s elapses — every
+caller already has error handling for network failures, so this changes
+*when* a hung request fails, not whether failures are handled. No
+retry-after-timeout logic was added: a timed-out request just fails like
+any other network error, consistent with this app's existing
+graceful-degradation posture elsewhere (LLM/search failures already
+degrade to an empty/fallback result rather than being retried
+automatically). Google Maps' two calls (`resolvePlaceHours`,
+`computeShortestRoute`) and Google OAuth's three were not live-tested
+under an actual timeout condition (would require a genuinely slow/hung
+server to trigger one) — verified structurally (every fetch call site
+now carries the signal, `pnpm verify` green) and via a live smoke test of
+the SerpApi paths through the watchlist cron route, not by forcing an
+actual timeout.
+**Alternatives considered:** A per-provider or per-call-site timeout
+value instead of one shared constant — rejected as unnecessary
+differentiation; every one of these APIs is a synchronous
+request/response call with no reason to expect meaningfully different
+normal latency, and a single shared constant (mirroring the LLM
+convention already in place) is simpler to reason about. Leaving the
+non-LLM timeout gap unfixed and relying on Vercel's ~300s function
+ceiling — rejected: that ceiling doesn't exist at all in local dev, and
+even in production it's a coarse, slow backstop that fails a
+user-facing request far later than a deliberate per-call cap would.
+
+---
+
 ## ADR-023 — Monthly automatic watchlist price check added, on top of (not instead of) manual checking
 **Date:** 2026-09-16
 **Status:** accepted

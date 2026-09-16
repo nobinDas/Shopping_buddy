@@ -1,5 +1,6 @@
 import 'server-only';
 import type { OpeningPeriod } from '@/server/domain/store-hours';
+import { EXTERNAL_FETCH_TIMEOUT_MS } from './http';
 
 /**
  * Google Maps Platform — Places API (store hours) and Routes API (drive
@@ -102,6 +103,7 @@ export async function resolvePlaceHours(query: string): Promise<PlaceHoursResult
       'X-Goog-FieldMask': 'places.id,places.regularOpeningHours',
     },
     body: JSON.stringify({ textQuery: query }),
+    signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`Google Places responded ${String(response.status)}`);
@@ -204,6 +206,7 @@ export async function computeShortestRoute(
       travelMode: 'DRIVE',
       optimizeWaypointOrder: true,
     }),
+    signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`Google Routes responded ${String(response.status)}`);

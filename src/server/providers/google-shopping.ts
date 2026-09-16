@@ -2,6 +2,7 @@ import 'server-only';
 import { parseAmountSpan } from '@/server/domain/parse-amount-span';
 import type { ProductCandidate } from '@/server/domain/watchlist-candidates';
 import type { ProductOffer } from '@/server/domain/watchlist-offers';
+import { EXTERNAL_FETCH_TIMEOUT_MS } from './http';
 
 /**
  * Two SerpApi engines, both Google Shopping data, two different jobs —
@@ -141,7 +142,7 @@ export async function searchProductCandidates(query: string): Promise<ProductCan
   url.searchParams.set('q', query);
   url.searchParams.set('api_key', apiKey);
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS) });
   if (!response.ok) {
     throw new Error(`SerpApi (google_shopping) responded ${String(response.status)}`);
   }
@@ -238,7 +239,7 @@ export async function getImmersiveProductOffers(pageToken: string): Promise<Prod
   url.searchParams.set('more_stores', 'true');
   url.searchParams.set('api_key', apiKey);
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS) });
   const data: unknown = await response.json();
 
   if (!response.ok) {

@@ -1,4 +1,5 @@
 import 'server-only';
+import { EXTERNAL_FETCH_TIMEOUT_MS } from './http';
 
 /**
  * Google OAuth adapter — one function per endpoint, matching
@@ -71,6 +72,7 @@ async function postForm(url: string, body: Record<string, string>): Promise<unkn
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(body).toString(),
+    signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -140,6 +142,7 @@ export async function revokeToken(token: string): Promise<void> {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ token }).toString(),
+    signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -154,6 +157,7 @@ export async function revokeToken(token: string): Promise<void> {
 export async function getUserInfo(accessToken: string): Promise<{ email: string }> {
   const response = await fetch(USERINFO_URL, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS),
   });
 
   if (!response.ok) {

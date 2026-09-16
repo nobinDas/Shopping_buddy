@@ -1,4 +1,5 @@
 import 'server-only';
+import { EXTERNAL_FETCH_TIMEOUT_MS } from './http';
 
 /**
  * Gmail message-reading adapter — separate from providers/google.ts,
@@ -25,7 +26,10 @@ function authHeaders(accessToken: string): HeadersInit {
 }
 
 async function getJson(url: string, accessToken: string): Promise<unknown> {
-  const response = await fetch(url, { headers: authHeaders(accessToken) });
+  const response = await fetch(url, {
+    headers: authHeaders(accessToken),
+    signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`Gmail API ${url} responded ${String(response.status)}`);
   }
