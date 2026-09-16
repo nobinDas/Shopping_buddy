@@ -562,6 +562,11 @@ to the item's own previous recorded price.
       ("a listing was found" — Google Shopping has no dedicated in-stock/
       out-of-stock field, so this is a real precision limit, not a true
       inventory feed, and is worded honestly in the UI)
+- [x] A monthly automatic price check across every tracked seller
+      (`/api/cron/watchlist-check`, `vercel.json` — 1st of the month,
+      14:00 UTC), alongside the existing manual per-item check button —
+      reuses `checkWatchlistItemPrice` unchanged per item, so a cron-driven
+      check and a user-driven one behave identically
 
 **Exit criteria:** a real watchlist item checked against Google Shopping,
 its price history accumulating across real checks, and a real price drop

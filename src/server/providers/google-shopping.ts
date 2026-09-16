@@ -219,9 +219,14 @@ export function parseImmersiveProductOffers(data: unknown): ProductOffer[] {
 /**
  * Fetches current seller offers for one already-resolved product, by its
  * `pageToken` (see this file's own top-of-file doc comment for why this
- * replaced `product_id`-based lookup). Throws `InvalidPageTokenError`
- * specifically when SerpApi rejects the token — every other failure
- * (network, other 4xx/5xx, a real search failure per
+ * replaced `product_id`-based lookup). `more_stores=true` widens the
+ * response from SerpApi's default 3-5 stores to up to 13 — needed so a
+ * tracked seller the user picked isn't simply absent from a small default
+ * page before `pickTrackedLowestOffer` ever gets to filter for it; a
+ * lower-traffic tracked seller (a smaller electronics retailer, say)
+ * could easily fall outside the default top few. Throws
+ * `InvalidPageTokenError` specifically when SerpApi rejects the token —
+ * every other failure (network, other 4xx/5xx, a real search failure per
  * `assertSerpApiSucceeded`) throws a plain `Error` instead, so the two
  * cases stay distinguishable at the call site.
  */
@@ -230,6 +235,7 @@ export async function getImmersiveProductOffers(pageToken: string): Promise<Prod
   const url = new URL(SEARCH_URL);
   url.searchParams.set('engine', 'google_immersive_product');
   url.searchParams.set('page_token', pageToken);
+  url.searchParams.set('more_stores', 'true');
   url.searchParams.set('api_key', apiKey);
 
   const response = await fetch(url);

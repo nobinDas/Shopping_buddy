@@ -27,6 +27,61 @@ not actually examined.
 
 ---
 
+## ADR-023 — Monthly automatic watchlist price check added, on top of (not instead of) manual checking
+**Date:** 2026-09-16
+**Status:** accepted
+**Context:** Every watchlist price check up to this point required the user
+to tap the per-item check icon — `checkWatchlistItemPrice`'s own doc
+comment said so explicitly ("on an explicit user action only, never
+automatic or bulk"), a deliberate Phase 3-era rate-limit-conscious choice
+for SerpApi's free tier. The user explicitly asked for a monthly automatic
+check instead, across every store they'd selected for a given item, not
+just whichever seller happened to surface a price on the last manual
+check.
+**Decision:** A new cron route, `/api/cron/watchlist-check`
+(`CRON_SECRET`-protected, same pattern as the existing `/api/cron/sync`,
+automatically exempted from the login-redirect via `middleware.ts`'s
+`/api/cron` prefix match), calls a new
+`services/watchlist.service.ts#checkAllWatchlistItemPrices`, which loops
+every watchlist item through the *same*, unmodified
+`checkWatchlistItemPrice` used by the manual check button — no separate
+code path, so a cron-driven check and a user-driven one produce identical
+results and identical price-history rows. Scheduled monthly
+(`vercel.json`, `0 14 1 * *`) rather than daily/weekly, matching what was
+actually asked for a "big-ticket, long-tracked purchase" doesn't need
+finer-grained tracking than that. Separately,
+`providers/google-shopping.ts#getImmersiveProductOffers` now passes
+`more_stores=true`, widening SerpApi's response from a default 3-5 sellers
+to up to 13 — directly serving "check over all the stores I have
+mentioned": without it, a tracked seller outside the default top few could
+simply never appear in the response for `pickTrackedLowestOffer` to
+filter for, manual or automatic.
+**Consequences:** The loop is deliberately sequential, not `Promise.all`
+(unlike the sync cron's account loop) — a real per-item paid SerpApi call
+against a rate-limited free tier, and this project has already hit
+real 503s under heavy call volume while building this feature (see
+`docs/LEARNED.md`). Sequential means a watchlist with many items takes
+proportionally longer to fully check once a month, trading batch latency
+for not bursting concurrent requests at the provider — acceptable since
+nothing in the UI is waiting on this cron to finish. Still no push/email
+notification (unchanged from Phase 5's original scope) — a price drop
+found by the monthly cron surfaces exactly the way a manually-found one
+already does, the nav badge, not proactively pushed to the user between
+opens of the app. `more_stores=true` also means every check (manual or
+cron) now costs slightly more response payload per call; not a real
+constraint at this app's scale.
+**Alternatives considered:** Daily or weekly instead of monthly — rejected
+as unrequested and unnecessary churn against SerpApi's free tier for
+items this app already treats as long-horizon, big-ticket purchases, not
+fast-moving deals. A separate, cron-specific check function duplicating
+`checkWatchlistItemPrice`'s logic — rejected: identical behavior between
+manual and automatic checks was exactly the property worth protecting,
+and any drift between two implementations would eventually make price
+history incomparable depending on which path produced which row, the
+same failure mode ADR-021 exists to prevent in the first place.
+
+---
+
 ## ADR-022 — Watchlist price-check moved from `google_product`/`product_id` to `google_immersive_product`/`page_token`
 **Date:** 2026-09-16
 **Status:** accepted

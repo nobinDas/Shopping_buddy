@@ -3,6 +3,7 @@ import {
   insertWatchlistItem,
   deleteWatchlistItemRow,
   getWatchlistItemById,
+  getAllWatchlistItems,
   updateWatchlistItemRow,
   insertWatchlistPriceHistory,
   clearAllPriceDropFlags,
@@ -197,9 +198,11 @@ export type PriceCheckResult =
   | { status: 'error'; message: string };
 
 /**
- * Checks one watchlist item's current price — on an explicit user action
- * only, never automatic or bulk, same rate-limit-conscious posture
- * Phase 3 established for SerpApi's free tier.
+ * Checks one watchlist item's current price — called both from an
+ * explicit user action (the check icon on `/watchlist`) and from the
+ * monthly cron batch (`checkAllWatchlistItemPrices`, `/api/cron/
+ * watchlist-check`). No manual/bulk distinction inside this function
+ * itself; every caller gets the same behavior.
  *
  * No search, no LLM call: fetches `google_immersive_product` offers for
  * the item's own `resolvedPageToken` directly. This is the entire point
@@ -294,4 +297,50 @@ export async function checkWatchlistItemPrice(
 /** Clears the price-drop nav badges — called once when /watchlist is opened. */
 export async function markWatchlistSeen(client: DbClient = db): Promise<void> {
   await clearAllPriceDropFlags(client);
+}
+
+/**
+ * Checks every watchlist item's price in one pass — the monthly cron
+ * batch (`/api/cron/watchlist-check`, `vercel.json`'s `0 14 1 * *`
+ * schedule), the automatic counterpart to the manual per-item check
+ * button. Reuses `checkWatchlistItemPrice` unchanged for each item, so
+ * an item's price history stays exactly as comparable whether a check
+ * came from the cron or from the user — same identity-anchored poll,
+ * same tracked-seller filtering, same needs_reresolution handling.
+ *
+ * Sequential, not `Promise.all`, deliberately: this is a real paid-API
+ * call per item against SerpApi's rate limits, unlike the daily email
+ * sync cron's `Promise.all` over a small, fixed number of inboxes — a
+ * watchlist can grow to however many items the user is tracking, and
+ * bursting that many concurrent SerpApi calls once a month is exactly
+ * the kind of self-inflicted rate-limit risk this project has hit
+ * before (docs/LEARNED.md's 503-under-load entries from testing this
+ * feature). Each item's failure is caught individually so one bad
+ * item — a real provider error, or anything else — never stops the
+ * batch partway through; `checkWatchlistItemPrice` already resolves to
+ * an `{ status: 'error' }` result rather than throwing for its own
+ * known failure modes, but this still guards against anything
+ * unexpected (e.g. a DB hiccup) escaping that.
+ */
+export async function checkAllWatchlistItemPrices(
+  client: DbClient = db,
+): Promise<{ itemId: string; result: PriceCheckResult }[]> {
+  const items = await getAllWatchlistItems(client);
+  const results: { itemId: string; result: PriceCheckResult }[] = [];
+
+  for (const item of items) {
+    try {
+      results.push({ itemId: item.id, result: await checkWatchlistItemPrice(item.id, client) });
+    } catch (error) {
+      results.push({
+        itemId: item.id,
+        result: {
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Price check failed.',
+        },
+      });
+    }
+  }
+
+  return results;
 }

@@ -8,6 +8,7 @@ import {
   createWatchlistItem,
   deleteWatchlistItem,
   checkWatchlistItemPrice,
+  checkAllWatchlistItemPrices,
   markWatchlistSeen,
 } from '@/server/services/watchlist.service';
 import { buildWatchlistItem } from '../fixtures/builders';
@@ -493,6 +494,49 @@ describe('checkWatchlistItemPrice', () => {
         const result = await checkWatchlistItemPrice(item.id, tx);
 
         expect(result).toEqual({ status: 'error', message: 'SerpApi responded 429' });
+
+        tx.rollback();
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+describe('checkAllWatchlistItemPrices', () => {
+  it('checks every item and continues past a per-item failure, keyed by pageToken not call order', async () => {
+    // mockImplementation keyed by the pageToken argument, not
+    // mockResolvedValueOnce call order — getAllWatchlistItems has no
+    // ORDER BY, and this shared dev database can carry other real rows
+    // alongside whatever this test inserts, so call order across the
+    // whole batch isn't something a test can assume.
+    vi.mocked(googleShopping.getImmersiveProductOffers).mockImplementation((pageToken) => {
+      if (pageToken === 'batch-token-fails') {
+        return Promise.reject(new Error('SerpApi responded 500'));
+      }
+      return Promise.resolve([
+        { unitPriceMinor: 5000, currency: 'USD', sellerName: 'StoreA', productLink: null },
+      ]);
+    });
+
+    await expect(
+      db.transaction(async (tx) => {
+        const ok = await insertItem(tx, {
+          name: 'Batch OK Item',
+          trackedSellers: ['StoreA'],
+          resolvedPageToken: 'batch-token-ok',
+        });
+        const failing = await insertItem(tx, {
+          name: 'Batch Failing Item',
+          trackedSellers: ['StoreB'],
+          resolvedPageToken: 'batch-token-fails',
+        });
+
+        const results = await checkAllWatchlistItemPrices(tx);
+
+        const okResult = results.find((r) => r.itemId === ok.id);
+        const failingResult = results.find((r) => r.itemId === failing.id);
+
+        expect(okResult?.result.status).toBe('found');
+        expect(failingResult?.result).toEqual({ status: 'error', message: 'SerpApi responded 500' });
 
         tx.rollback();
       }),
