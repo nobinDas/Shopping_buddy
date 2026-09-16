@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parsePlaceSearchResponse, parseRouteResponse } from '@/server/providers/google-maps';
+import {
+  parseAutocompleteResponse,
+  parsePlaceSearchResponse,
+  parseRouteResponse,
+} from '@/server/providers/google-maps';
 
 describe('parsePlaceSearchResponse', () => {
   it('extracts placeId, weekday text, and normalized periods', () => {
@@ -53,6 +57,37 @@ describe('parsePlaceSearchResponse', () => {
       openingHoursText: null,
       openingHoursPeriods: null,
     });
+  });
+});
+
+describe('parseAutocompleteResponse', () => {
+  it('extracts placeId and display text from each prediction', () => {
+    const result = parseAutocompleteResponse({
+      suggestions: [
+        {
+          placePrediction: {
+            placeId: 'place-1',
+            text: { text: '1600 Amphitheatre Parkway, Mountain View, CA, USA' },
+          },
+        },
+      ],
+    });
+
+    expect(result).toEqual([
+      { placeId: 'place-1', description: '1600 Amphitheatre Parkway, Mountain View, CA, USA' },
+    ]);
+  });
+
+  it('drops predictions missing a placeId or text', () => {
+    const result = parseAutocompleteResponse({
+      suggestions: [{ placePrediction: { text: { text: 'No id' } } }, { placePrediction: {} }, {}],
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns an empty array when there are no suggestions', () => {
+    expect(parseAutocompleteResponse({})).toEqual([]);
   });
 });
 

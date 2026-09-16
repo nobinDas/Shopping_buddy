@@ -12,6 +12,7 @@ import { EXTERNAL_FETCH_TIMEOUT_MS } from './http';
  */
 
 const PLACES_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
+const PLACES_AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete';
 const ROUTES_COMPUTE_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 
 function requireApiKey(): string {
@@ -111,6 +112,65 @@ export async function resolvePlaceHours(query: string): Promise<PlaceHoursResult
 
   const data: unknown = await response.json();
   return parsePlaceSearchResponse(data);
+}
+
+// ── Places: address autocomplete ─────────────────────────────────────
+
+export interface AddressSuggestion {
+  placeId: string;
+  description: string;
+}
+
+interface AutocompleteResponse {
+  suggestions?: {
+    placePrediction?: {
+      placeId?: string;
+      text?: { text?: string };
+    };
+  }[];
+}
+
+/**
+ * Pure — no network call — unit-tested directly against fixture JSON.
+ * Drops any suggestion missing a placeId or display text rather than
+ * passing a half-formed row on to the UI.
+ */
+export function parseAutocompleteResponse(data: unknown): AddressSuggestion[] {
+  const response = data as AutocompleteResponse;
+  const suggestions: AddressSuggestion[] = [];
+  for (const item of response.suggestions ?? []) {
+    const placeId = item.placePrediction?.placeId;
+    const description = item.placePrediction?.text?.text;
+    if (!placeId || !description) continue;
+    suggestions.push({ placeId, description });
+  }
+  return suggestions;
+}
+
+/**
+ * Address suggestions for the store-add typeahead, via Places Autocomplete
+ * (New) Text Search. A miss or a provider error isn't fatal here either —
+ * callers should treat this the same "unknown, not blocking" way
+ * resolvePlaceHours is treated.
+ */
+export async function autocompleteAddress(query: string): Promise<AddressSuggestion[]> {
+  const apiKey = requireApiKey();
+
+  const response = await fetch(PLACES_AUTOCOMPLETE_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+    },
+    body: JSON.stringify({ input: query }),
+    signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Google Places Autocomplete responded ${String(response.status)}`);
+  }
+
+  const data: unknown = await response.json();
+  return parseAutocompleteResponse(data);
 }
 
 // ── Routes: shortest multi-stop order + drive minutes ──────────────────
