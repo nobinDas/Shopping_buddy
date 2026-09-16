@@ -151,6 +151,11 @@ export function buildPreferredStore(overrides: Partial<NewPreferredStore> = {}):
 export function buildWatchlistItem(overrides: Partial<NewWatchlistItem> = {}): NewWatchlistItem {
   return {
     name: 'Test Watchlist Item',
+    category: 'electronics',
+    trackedSellers: ['Best Buy'],
+    resolvedProductId: 'test-product-id',
+    resolvedPageToken: 'test-page-token',
+    resolvedTitle: 'Test Watchlist Item',
     ...overrides,
   };
 }

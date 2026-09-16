@@ -38,10 +38,10 @@ export async function getWatchlistItemById(
 }
 
 export async function insertWatchlistItem(
-  name: string,
+  values: NewWatchlistItem,
   client: DbClient = db,
 ): Promise<WatchlistItemRow> {
-  const [row] = await client.insert(watchlistItems).values({ name }).returning();
+  const [row] = await client.insert(watchlistItems).values(values).returning();
   if (!row) {
     throw new Error('insertWatchlistItem: insert did not return a row');
   }

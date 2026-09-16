@@ -13,8 +13,8 @@ describe('insertWatchlistItem / getAllWatchlistItems', () => {
   it('attaches each item its own price history only, oldest first', async () => {
     await expect(
       db.transaction(async (tx) => {
-        const itemA = await insertWatchlistItem('TV', tx);
-        const itemB = await insertWatchlistItem('Vacuum', tx);
+        const itemA = await insertWatchlistItem(buildWatchlistItem({ name: 'TV' }), tx);
+        const itemB = await insertWatchlistItem(buildWatchlistItem({ name: 'Vacuum' }), tx);
 
         await tx
           .insert(watchlistPriceHistory)
@@ -41,7 +41,7 @@ describe('insertWatchlistItem / getAllWatchlistItems', () => {
   it('returns an empty history array for an item never checked', async () => {
     await expect(
       db.transaction(async (tx) => {
-        const item = await insertWatchlistItem('Espresso machine', tx);
+        const item = await insertWatchlistItem(buildWatchlistItem({ name: 'Espresso machine' }), tx);
 
         const items = await getAllWatchlistItems(tx);
         const found = items.find((i) => i.id === item.id);

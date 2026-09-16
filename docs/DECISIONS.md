@@ -27,6 +27,111 @@ not actually examined.
 
 ---
 
+## ADR-022 — Watchlist price-check moved from `google_product`/`product_id` to `google_immersive_product`/`page_token`
+**Date:** 2026-09-16
+**Status:** accepted
+**Context:** ADR-021's identity-anchored design polled a resolved item's price
+via SerpApi's `google_product` engine, keyed by the `product_id` captured at
+add-time. Verifying the search-accuracy fix below live, every price check
+started failing with a real HTTP 400: `"The Google Product service is no
+longer offered by Google."` — reproduced with several previously-working
+`product_id`s, not account- or item-specific. Google discontinued the
+classic product-page surface (SerpApi's own docs confirm this, September
+2025) and point to `google_immersive_product` as the replacement.
+**Decision:** Every `google_shopping` search result already carries an
+`immersive_product_page_token` field alongside `product_id` — captured for
+free at search time, no extra call needed. `watchlist_items` gained a new
+nullable `resolvedPageToken` column; `createWatchlistItem` stores it
+alongside the existing `resolvedProductId` (kept for display/debugging
+only, no longer functionally load-bearing), and
+`checkWatchlistItemPrice` now calls
+`providers/google-shopping.ts#getImmersiveProductOffers(pageToken)`
+instead. SerpApi rejects an invalid/expired token with a distinct, matchable
+error (`"Invalid \`page_token\` parameter."`) — surfaced as a new
+`InvalidPageTokenError` type and routed to the existing
+`needs_reresolution` status, the same outcome a delisted product already
+produced, rather than a raw error.
+**Consequences:** Whether `page_token` stays valid for the same long
+stretch `product_id` was assumed to (weeks/months, per ADR-021's original
+identity-anchoring intent) is unverified — confirming that would require
+waiting real time between checks, which wasn't practical while fixing this
+live. If tokens turn out to expire faster than expected, items will surface
+`needs_reresolution` more often than ADR-021 anticipated; the fallback
+already handles it gracefully (delete and re-add), but that's more manual
+work than a truly long-lived handle would require. The one item created
+before this column existed has a null `resolvedPageToken` and needs
+re-resolution — left as-is rather than backfilled or deleted, per this
+project's DB non-negotiable (`checkWatchlistItemPrice` already short-circuits
+a null token to `needs_reresolution` cleanly).
+**Alternatives considered:** Backfilling `resolvedPageToken` for existing
+rows by re-searching each one — rejected: no user-facing "which of these is
+it" confirmation step exists to run headlessly, and misresolving an
+existing item silently would be worse than surfacing it as needing
+re-resolution, which the UI already models. Re-running a fresh
+`google_shopping` search on every price check instead of anchoring to any
+one identifier — rejected: this is exactly the pattern ADR-021's
+identity-anchoring existed to avoid (price history silently drifting to a
+different listing/variant each check).
+
+---
+
+## ADR-021 — Watchlist identity-anchored resolution: resolve a product once at add-time, poll by that identity forever after
+**Date:** 2026-09-15
+**Status:** accepted (see ADR-022 for a same-day provider-engine amendment)
+**Context:** The original watchlist implementation re-searched Google
+Shopping by product name on every price check, matching best-effort against
+whatever came back. Two real, live-confirmed failures followed from this:
+(1) a search for a specific product could surface an unrelated accessory
+(a phone case, a screen protector) as the top "match" instead of the actual
+product, since Google Shopping's organic ranking for a bare product-name
+query is often dominated by cheap accessory sellers; (2) even when the
+right product surfaced once, a *different* listing or variant could surface
+next time, making price history meaningless — a "price drop" could just be
+a different, cheaper item being matched, not the same item actually getting
+cheaper. Referenced throughout the codebase as "the watchlist
+identity-resolution ADR" before this entry existed to back that reference.
+**Decision:** Split the flow into two phases with two different jobs.
+*Resolution* happens once, interactively, at add-time: the user runs a
+real search (query built from an LLM-extracted structured plan — brand/
+product line/model/variant/exclude terms — via
+`domain/watchlist-query.ts#buildShoppingQuery`), the raw candidates are
+deduplicated, filtered for likely accessories (a keyword heuristic, then an
+LLM validation pass), and the user picks which specific result is actually
+their product from a short list. That choice's identity is then anchored
+permanently on the row (`resolvedProductId`, later joined by
+`resolvedPageToken` — ADR-022). *Checking* happens on every later explicit
+check: no search, no LLM call, just a direct provider lookup by the
+anchored identity, so every poll targets the exact same product. To make
+resolution itself accurate, the add-item form collects category (mandatory)
+and optional brand/variant/notes/expected-price-range fields, plus
+mandatory tracked sellers — every check is scoped to only those sellers
+(`domain/watchlist-offers.ts#pickTrackedLowestOffer`), never falling back to
+an untracked seller's price, per explicit user instruction ("not randomly
+anything").
+**Consequences:** Resolution is a real, sometimes-slow interactive step (a
+planner call, a search call, dedup/filter, a validator call) rather than an
+instant "type a name and go" flow — acceptable since this happens once per
+item, not on every check. An item's identity can go stale (delisted,
+re-catalogued) with no automatic recovery; `resolutionStatus:
+'needs_reresolution'` surfaces this rather than silently falling back to an
+unconfirmed fresh search, but the only recovery path is delete-and-re-add,
+not an in-place re-resolution flow. The accessory-vs-real-product problem
+this was built to solve turned out to need two more live-confirmed
+corrections after this design shipped (documented in `docs/LEARNED.md`,
+2026-09-15): SerpApi's price-range search filter doesn't work at all for
+this engine, and negated exclude-terms in the query actively invert result
+quality — both fixed by moving that filtering to already-fetched results in
+application code rather than trusting the provider to do it.
+**Alternatives considered:** Re-searching on every check with the same
+exclude-term/price-range query used at add-time — rejected as the direct
+cause of the price-history-drift problem this ADR exists to fix. Storing a
+normalized product signature (brand+model+variant) and fuzzy-matching it
+against fresh search results on every check — rejected as more complex than
+a stable provider-issued identifier, and no more reliable given the two
+query-construction bugs found afterward.
+
+---
+
 ## ADR-020 — Three scoping calls made while implementing Phase 1e's reconciliation
 **Date:** 2026-09-14
 **Status:** accepted

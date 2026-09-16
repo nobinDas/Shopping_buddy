@@ -533,13 +533,94 @@ export const userSettings = pgTable('user_settings', {
 // these are long-term-tracked, big-ticket items, not short-lived grocery
 // entries — no quantity, no store, no due date. Priced via Google
 // Shopping (providers/google-shopping.ts), not Walmart-only.
+//
+// Extended for identity-anchored price tracking (see docs/DECISIONS.md's
+// watchlist identity-resolution ADR): an item is resolved to one
+// specific product once, at creation, rather than re-searched and
+// re-matched on every price check — resolvedProductId is the stable
+// handle every later check polls by by. category/brand/variant/notes/
+// trackedSellers are all collected at creation to make that one-time
+// resolution (and later polls) accurate.
+
+export const watchlistCategoryEnum = pgEnum('watchlist_category', [
+  'electronics',
+  'appliances',
+  'furniture',
+  'apparel',
+  'beauty',
+  'sports_outdoors',
+  'toys_games',
+  'home_kitchen',
+  'books_media',
+  'automotive',
+  'other',
+]);
+
+export const watchlistResolutionStatusEnum = pgEnum('watchlist_resolution_status', [
+  'resolved',
+  'needs_reresolution',
+]);
 
 export const watchlistItems = pgTable('watchlist_items', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
 
+  category: watchlistCategoryEnum('category').notNull(),
+  // All optional — the user may not know/care to specify these, and the
+  // query planner (providers/anthropic.ts#planWatchlistQuery) still runs
+  // off just name + category when they're absent.
+  brand: text('brand'),
+  variant: text('variant'),
+  notes: text('notes'),
+
+  // A price outside this range drives /watchlist's red/normal price
+  // color and, combined with hasPriceDrop, the notification badge — see
+  // domain/price-trend.ts#isOverExpectedRange/enteredExpectedRange. Both
+  // null together means no range was set; expectedPriceCurrency exists
+  // specifically so these are never compared against an observed price
+  // in a different currency (docs/CLAUDE.md's money rule).
+  expectedPriceMinMinor: integer('expected_price_min_minor'),
+  expectedPriceMaxMinor: integer('expected_price_max_minor'),
+  expectedPriceCurrency: char('expected_price_currency', { length: 3 }),
+
+  // At least one required by the add-item form — every price check is
+  // scoped to these sellers only (domain/watchlist-offers.ts), never an
+  // unrestricted search, per explicit user request: "not randomly
+  // anything."
+  trackedSellers: text('tracked_sellers').array().notNull(),
+
+  // Set once, at creation, when the user confirms which of the search
+  // candidates is actually their product
+  // (services/watchlist.service.ts#createWatchlistItem). resolvedProductId
+  // is kept for display/debugging only — Google shut down the
+  // `google_product` engine that once polled by it (confirmed live,
+  // 2026-09-15: "The Google Product service is no longer offered by
+  // Google."). Every later price check now polls resolvedPageToken
+  // instead (providers/google-shopping.ts#getImmersiveProductOffers, the
+  // `google_immersive_product` engine) — same identity-anchored intent,
+  // different provider handle.
+  resolvedProductId: text('resolved_product_id').notNull(),
+  // Nullable, unlike resolvedProductId: added after the table already had
+  // at least one live row from before this handle existed, and per this
+  // project's DB non-negotiable that row is never edited without explicit
+  // permission. A null token means the same thing `checkWatchlistItemPrice`
+  // already does for a resolution that stopped working — it flips
+  // resolutionStatus to 'needs_reresolution' on the next check rather than
+  // calling the provider with nothing to poll.
+  resolvedPageToken: text('resolved_page_token'),
+  resolvedTitle: text('resolved_title').notNull(),
+  resolvedSourceUrl: text('resolved_source_url'),
+  // Flips to 'needs_reresolution' when resolvedProductId stops resolving
+  // (delisted/changed) — surfaced on /watchlist rather than silently
+  // falling back to a fresh, unconfirmed search.
+  resolutionStatus: watchlistResolutionStatusEnum('resolution_status')
+    .notNull()
+    .default('resolved'),
+
   // Set true when a price check finds a lower price than the previously
-  // cached one; cleared when /watchlist is opened
+  // cached one, *or* when the price crosses into the expected range from
+  // above (domain/price-trend.ts#didPriceDrop / #enteredExpectedRange);
+  // cleared when /watchlist is opened
   // (services/watchlist.service.ts#markWatchlistSeen). Read by the nav
   // badges (BottomNav's More tab, and the Watchlist row inside /more) via
   // a single count query — cheaper than recomputing "did the last two

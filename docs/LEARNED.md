@@ -50,6 +50,170 @@ project description than thirty thin ones.
 
 _Newest first._
 
+### 2026-09-16 — SerpApi's `google_product` engine is dead; Google shut down the surface it scraped
+**Context:** Live-verifying the watchlist search fix end to end (previous
+entry), the "Find this product" step worked, but checking the newly-added
+item's price immediately failed: `SerpApi (google_product) responded 400`.
+This was the *other* half of the watchlist identity-resolution design
+(ADR-021) — resolution (search) had just been fixed, but checking
+(polling the resolved identity) was untouched and had never been
+re-verified live in this session.
+**What I thought:** This would be another provider-behavior quirk like the
+day's earlier two (the inert price filter, the inverting exclude-terms) —
+something to work around with different parameters or parsing.
+**What was actually true:** It's not a bug to work around. The 400 body
+read `"The Google Product service is no longer offered by Google."` —
+reproduced with three different, previously-valid `product_id`s, so not
+item- or account-specific. A web search confirmed this: Google
+discontinued the classic product-page surface in September 2025, and
+SerpApi's own docs point to a replacement engine,
+`google_immersive_product`, keyed by a `page_token` instead of a
+`product_id`. That token turned out to already be present on every
+`google_shopping` search result (`immersive_product_page_token`) — no
+extra call needed to obtain it, just a new field to capture at
+resolution-time. See `docs/DECISIONS.md` ADR-022 for the fix.
+**Why it matters:** Not every "the provider behaves oddly" investigation
+ends in a workaround — sometimes the honest answer is "this stopped
+existing," and no amount of adjusting query syntax or parameter names
+would have found that; a plain error-message read plus one web search
+settled it in minutes, versus however long a purely code-side investigation
+(retrying, tweaking parameters, re-reading the old response shape) would
+have burned trying to fix something that no longer works at all. It's also
+a reminder that "identity-anchored, poll forever" designs (ADR-021, this
+app's version of the CamelCamelCamel/Keepa ASIN pattern) carry a real,
+easy-to-miss dependency: the *anchor itself* is a third-party handle with
+its own lifecycle, not a property of the product. The new `page_token`'s
+own long-term validity is still unverified for the same reason — that
+question can only be answered by waiting real time between checks, not by
+reasoning about it up front.
+**Portfolio-worthy:** yes
+
+### 2026-09-15 — Negated words in a SerpApi google_shopping query don't exclude that term — they invert the result set toward it
+**Context:** Same watchlist fix, after removing the ineffective price
+filter (see the entry below) and re-verifying end to end. A live run for
+"iPhone 17 Pro 256GB" still returned zero candidates once accessories were
+properly excluded — because the *query itself* was returning nothing but
+accessories in its top 40 results, before any downstream filtering even
+ran. This looked at first like a continuation of the quoted-negated-phrase
+bug documented in the entry two below (correctly quoted syntax, correctly
+capped at 6 terms, one word at a time) — but that fix turned out to be
+necessary and not sufficient.
+**What I thought:** Once the negation syntax itself was correct (unquoted,
+single words, under the count that returns zero results outright),
+`-case -cover -screen -protector ...` would do what it says: exclude
+listings containing those words, the same way it does for a plain Google
+web search.
+**What was actually true:** Isolated with four live queries, controlling
+one variable at a time. `"Apple iPhone 17 Pro 256GB"` alone (no exclude
+terms) returned 22 of 40 results as genuine phone listings in the
+$800-$1200 range, from real retailers. Adding **a single** `-case` to the
+exact same query dropped that to 0 of 40 — every top result an *"...Case
+with MagSafe"* listing, i.e. exactly the thing being excluded, now
+dominating the result set instead of being filtered out of it. `-cover`
+alone reproduced the same collapse. The full 8-term production exclude
+list did too. This isn't the already-documented "too many negated words
+returns zero results" failure (a different, also-real bug, see two entries
+below) — this is a *single*, well-formed negation making relevance
+actively worse, present as of this test.
+**Why it matters:** A search operator behaving oddly at the edges (too
+many terms, a quoted phrase) is a bug that stays contained to those edges.
+An operator that inverts the intended effect under completely ordinary
+use — one common word, correctly formatted — means the operator can't be
+trusted for its stated purpose *at all*, at any count. The fix wasn't a
+smaller cap or different formatting; it was removing exclude-term query
+syntax entirely (`domain/watchlist-query.ts#buildShoppingQuery` no longer
+touches `excludeTerms`) and relying only on filtering already-fetched
+results — title-heuristic and LLM-based, both applied after the fact,
+where a bad match affects one candidate instead of poisoning the entire
+returned set. The general lesson: when a provider operator produces a
+result opposite to its documented meaning, adjusting *how* you use it is
+the wrong instinct — the fix is to stop depending on it and move the same
+logic to a layer you control.
+**Portfolio-worthy:** yes
+
+### 2026-09-15 — SerpApi's google_shopping price-range filter (tbs/low_price/high_price) doesn't actually filter anything — and an earlier "confirmed live" entry for it was wrong
+**Context:** Same watchlist identity-resolution fix as the entry below. After
+fixing the quoted-negation query bug, live testing still showed a real
+search ("Apple iPhone 17 Pro 256GB") returning 40/40 accessory listings and
+zero real phones. The fix built at the time was to add SerpApi's documented
+price-range operator, `tbs=mr:1,price:1,ppr_min:X,ppr_max:Y`, to the search
+itself — and a live test that day appeared to confirm it worked (real phone
+listings showed up after adding it), so it shipped as the core fix, with
+code comments and a unit test asserting the exact `tbs` string passed to
+the provider.
+**What I thought:** The `tbs` price-range filter was a real, working
+search-time filter for the `google_shopping` engine, with `ppr_min`/
+`ppr_max` in this app's existing integer-minor-units convention — "confirmed
+live," per the code comments and LEARNED.md-adjacent notes written at the
+time.
+**What was actually true:** It does nothing. Re-tested during a follow-up
+debugging session (a live end-to-end run still returned "no listings
+found" even with the filter wired all the way through): the exact same
+query returns byte-for-byte identical results, in identical order, whether
+`tbs` is omitted, set with `ppr_min`/`ppr_max` in cents, or set with them in
+plain dollars (the format SerpApi's own blog documents). The decisive test:
+an *impossible* range (`ppr_min:99999,ppr_max:100000`, i.e. "$99,999-
+$100,000") on a `phone case` search still returned ordinary $25-$75 phone
+cases, unfiltered — proof the parameter is inert for this engine, not just
+misconfigured. The same held for the documented `low_price`/`high_price`
+params. A GitHub search turned up a SerpApi roadmap issue about adding
+custom price-range filtering to Google Shopping after a Google layout
+change, consistent with this: the real mechanism (a `shoprs` filter token
+read back from a `filters` block in an unfiltered response) isn't a
+hand-constructable query parameter at all. The original "confirmed live"
+result was very likely a false positive — a coincidental change in results
+(a different exclude-term set, a different moment in Google's index, or
+similar) mistaken for the filter working, because no impossible-range
+control test was run at the time.
+**Why it matters:** "Confirmed live" is only as strong as the control you
+tested against. Comparing "with filter" vs "without filter" once and seeing
+different results is not enough when the query itself was also different
+each time — the only test that actually isolates the filter's effect is one
+where the *expected* outcome is unambiguous regardless of anything else in
+play (here: an impossible range must return zero results if the filter
+does anything at all). The real fix ended up not needing the provider's
+cooperation at all: every candidate already carries its own price, and the
+user's expected range was already being collected — filtering the returned
+candidates in application code
+(`domain/watchlist-candidates.ts#filterByExpectedPriceRange`) achieves the
+same practical result (accessories are almost always priced far outside a
+real product's range) without depending on an external parameter that
+turned out not to work.
+**Portfolio-worthy:** yes
+
+### 2026-09-15 — A quoted negated phrase silently zeroes out Google Shopping results, undocumented
+**Context:** Building Phase 5's watchlist identity-resolution fix, specifically
+`domain/watchlist-query.ts#buildShoppingQuery` — turning a structured query
+plan (brand/model/exclude terms) into an actual search string for SerpApi's
+`google_shopping` engine.
+**What I thought:** Standard search-operator syntax would apply here the way
+it does for plain Google web search — a negated multi-word phrase gets
+quoted, e.g. `-"screen protector"`, the same way a positive multi-word phrase
+does. This was flagged as an open, unverified assumption in the plan rather
+than treated as certain, but the first implementation still used it.
+**What was actually true:** Tested directly against the real API before
+trusting it (per this project's own standing practice of verifying rather
+than assuming provider behavior). A quoted negated phrase returns **zero**
+results outright — `"Google hasn't returned any results for this query"` —
+even though the identical query with the phrase quoted but *not* negated
+returns 40 results, and the same exclude term split into separate
+single-word negations (`-screen -protector`) also returns the full 40.
+Isolated with four back-to-back real calls varying one thing at a time. Not
+documented anywhere in SerpApi's own docs — found empirically, not by
+reading.
+**Why it matters:** An unverified assumption about external API syntax
+doesn't fail loud — it fails by silently returning "no results" for a
+plausible-looking, syntactically-reasonable query, which is nearly
+indistinguishable from "this product genuinely isn't listed anywhere." Live
+in the app, this showed up as the "Find this product" step's empty state —
+correct UI behavior for a real empty result, wrong diagnosis for what was
+actually a malformed query. The fix (never quote a negated phrase; split it
+into separate single-word negations) is one line, but finding it required
+testing the actual failing query against the real API rather than debugging
+the application code in isolation, since the application code was working
+exactly as written — the syntax it was taught to produce was the bug.
+**Portfolio-worthy:** yes
+
 ### 2026-09-14 — Wiring up the actual cron schedule surfaced a real auth gap the manual "Sync now" button never could
 **Context:** Turning on `/api/cron/sync`'s real Vercel Cron schedule
 (`vercel.json`), after it had sat unscheduled since Phase 1d — protected by

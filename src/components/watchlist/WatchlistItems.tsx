@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { Search, Trash2 } from 'lucide-react';
 import { formatMoney } from '@/lib/money';
+import { isOverExpectedRange } from '@/server/domain/price-trend';
 import type { WatchlistItemWithHistory } from '@/server/db/queries/watchlist';
 import type { PriceCheckResult } from '@/server/services/watchlist.service';
 import {
@@ -119,19 +120,34 @@ export function WatchlistItems({ items }: { items: WatchlistItemWithHistory[] })
       {items.map((item) => {
         const priceCheck = priceChecks[item.id];
         const currency = item.latestCurrency ?? 'USD';
+        const overExpectedRange =
+          item.latestPriceMinor !== null &&
+          isOverExpectedRange(
+            item.latestPriceMinor,
+            currency,
+            item.expectedPriceMaxMinor,
+            item.expectedPriceCurrency,
+          );
 
         return (
           <div key={item.id} className="border-b border-rule py-4">
             <div className="mb-1 flex items-baseline justify-between gap-2">
               <span className="font-sans text-[15px] font-medium text-ink">{item.name}</span>
-              <span className="flex-none font-mono text-base text-ink">
+              <span
+                className={`flex-none font-mono text-base ${overExpectedRange ? 'text-flag' : 'text-ink'}`}
+              >
                 {item.latestPriceMinor === null
                   ? '—'
                   : formatMoney({ amountMinor: item.latestPriceMinor, currency })}
               </span>
             </div>
 
-            <div className="mb-2.5 flex items-center gap-2">
+            <div className="mb-2.5 flex flex-wrap items-center gap-2">
+              {item.resolutionStatus === 'needs_reresolution' && (
+                <p className="font-mono text-[10px] font-semibold tracking-widest text-flag">
+                  NEEDS RE-CHECK — LISTING NO LONGER FOUND
+                </p>
+              )}
               {item.hasPriceDrop && (
                 <p className="font-mono text-[10px] font-semibold tracking-widest text-verified">
                   PRICE DROPPED
@@ -154,7 +170,12 @@ export function WatchlistItems({ items }: { items: WatchlistItemWithHistory[] })
               <p className="min-h-[1em] text-[13px] leading-relaxed text-ink-muted">
                 {priceCheck?.status === 'checking' && 'Checking Google Shopping…'}
                 {priceCheck?.status === 'found' && 'Updated.'}
-                {priceCheck?.status === 'not_found' && 'No listing found right now.'}
+                {priceCheck?.status === 'not_found' && 'No listing found right now from your tracked stores.'}
+                {priceCheck?.status === 'needs_reresolution' && (
+                  <span className="text-flag">
+                    This listing is no longer found — remove and re-add the item to track it again.
+                  </span>
+                )}
                 {priceCheck?.status === 'error' && <span className="text-flag">{priceCheck.message}</span>}
               </p>
               <div className="flex flex-none gap-3">

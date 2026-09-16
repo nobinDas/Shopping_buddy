@@ -4,8 +4,12 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { CLASSIFY_EMAIL_SYSTEM_PROMPT } from '@/server/prompts/classify-email';
 import { WRITE_REVIEW_BRIEF_SYSTEM_PROMPT } from '@/server/prompts/write-review-brief';
+import { PLAN_WATCHLIST_QUERY_SYSTEM_PROMPT } from '@/server/prompts/plan-watchlist-query';
+import { RECOMMEND_WATCHLIST_STORES_SYSTEM_PROMPT } from '@/server/prompts/recommend-watchlist-stores';
+import { VALIDATE_SHOPPING_CANDIDATES_SYSTEM_PROMPT } from '@/server/prompts/validate-shopping-candidates';
 import { parseDateSpan } from '@/server/domain/parse-date-span';
 import { parseAmountSpan } from '@/server/domain/parse-amount-span';
+import type { WatchlistQueryPlan } from '@/server/domain/watchlist-query';
 
 /**
  * Claude classification/extraction — docs/DECISIONS.md's ADR-016
@@ -374,4 +378,137 @@ export async function writeReviewBrief(input: {
     ReviewBriefSchema,
   );
   return parseReviewBriefResponse(data);
+}
+
+// ── Watchlist: query planning, store recommendations, candidate
+// validation — see docs/DECISIONS.md's watchlist identity-resolution
+// ADR. All three are Haiku-only (no Sonnet escalation tier): each is a
+// bounded, low-ambiguity task on a short, user-typed input — nothing
+// like an email body's real-world messiness, which is what
+// classifyEmail's two-tier design exists for. All three run only at
+// add-item time (never at check-price time), so their cost is paid once
+// per watchlist item, not once per poll.
+
+function buildWatchlistItemUserMessage(input: {
+  name: string;
+  category: string;
+  brand?: string | null;
+  variant?: string | null;
+  notes?: string | null;
+}): string {
+  const lines = [`Product name: ${input.name}`, `Category: ${input.category}`];
+  if (input.brand) lines.push(`Brand: ${input.brand}`);
+  if (input.variant) lines.push(`Variant/model detail: ${input.variant}`);
+  if (input.notes) lines.push(`Notes: ${input.notes}`);
+  return lines.join('\n');
+}
+
+const WatchlistQueryPlanSchema = z.object({
+  brand: z.string().nullable(),
+  productLine: z.string().nullable(),
+  model: z.string().nullable(),
+  variant: z.string().nullable(),
+  excludeTerms: z.array(z.string()),
+});
+
+/**
+ * Extracts a structured product description — see
+ * prompts/plan-watchlist-query.ts. `domain/watchlist-query.ts#buildShoppingQuery`
+ * turns the result into an actual search string; this function never
+ * builds one itself, matching the verbatim-data-in/deterministic-
+ * assembly-in-code split classifyEmail's amount/date fields already use.
+ * Returns null on any failure (network or schema) — the caller falls
+ * back to the raw product name as the search query rather than failing
+ * the whole add flow over one LLM hiccup.
+ */
+export async function planWatchlistQuery(input: {
+  name: string;
+  category: string;
+  brand?: string | null;
+  variant?: string | null;
+  notes?: string | null;
+}): Promise<WatchlistQueryPlan | null> {
+  const client = getClient();
+  const userMessage = buildWatchlistItemUserMessage(input);
+
+  const data = await callModel(
+    client,
+    HAIKU_MODEL,
+    PLAN_WATCHLIST_QUERY_SYSTEM_PROMPT,
+    userMessage,
+    WatchlistQueryPlanSchema,
+  );
+  const parsed = WatchlistQueryPlanSchema.safeParse(data);
+  return parsed.success ? parsed.data : null;
+}
+
+const RecommendStoresSchema = z.object({
+  stores: z.array(z.string()),
+});
+
+/**
+ * Suggests stores/sellers for the add-item form's "Recommend stores"
+ * button — see prompts/recommend-watchlist-stores.ts. Returns null on
+ * failure; the caller shows an empty/failed state and the user can still
+ * type stores in manually, same graceful-degradation posture as
+ * planWatchlistQuery.
+ */
+export async function recommendWatchlistStores(input: {
+  name: string;
+  category: string;
+  brand?: string | null;
+  variant?: string | null;
+}): Promise<string[] | null> {
+  const client = getClient();
+  const userMessage = buildWatchlistItemUserMessage(input);
+
+  const data = await callModel(
+    client,
+    HAIKU_MODEL,
+    RECOMMEND_WATCHLIST_STORES_SYSTEM_PROMPT,
+    userMessage,
+    RecommendStoresSchema,
+  );
+  const parsed = RecommendStoresSchema.safeParse(data);
+  return parsed.success ? parsed.data.stores : null;
+}
+
+const ValidateShoppingCandidatesSchema = z.object({
+  matches: z.array(z.boolean()),
+});
+
+/**
+ * The LLM-fallback pass over whatever candidates
+ * domain/watchlist-result-filter.ts#isLikelyAccessory didn't already
+ * exclude — one batched call per add-item search, not one per candidate
+ * (see prompts/validate-shopping-candidates.ts). Returns `matches[i]`
+ * aligned to `candidateTitles[i]`; null on failure *or* if the model
+ * returns a different-length array than it was given (the schema alone
+ * can't enforce that) — the caller falls back to treating every
+ * surviving candidate as unvalidated (heuristic-only result) rather than
+ * failing the whole search.
+ */
+export async function validateShoppingCandidates(
+  targetProduct: string,
+  candidateTitles: string[],
+): Promise<boolean[] | null> {
+  if (candidateTitles.length === 0) return [];
+
+  const client = getClient();
+  const userMessage = `Target product: ${targetProduct}\n\nCandidates:\n${candidateTitles
+    .map((title, index) => `${String(index + 1)}. ${title}`)
+    .join('\n')}`;
+
+  const data = await callModel(
+    client,
+    HAIKU_MODEL,
+    VALIDATE_SHOPPING_CANDIDATES_SYSTEM_PROMPT,
+    userMessage,
+    ValidateShoppingCandidatesSchema,
+  );
+  const parsed = ValidateShoppingCandidatesSchema.safeParse(data);
+  if (!parsed.success || parsed.data.matches.length !== candidateTitles.length) {
+    return null;
+  }
+  return parsed.data.matches;
 }
