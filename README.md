@@ -1,4 +1,4 @@
-# Overhead
+# Purleen
 
 A single-user personal finance and life-logistics app. It starts from one
 question — *what am I actually paying for every month?* — and grows into
